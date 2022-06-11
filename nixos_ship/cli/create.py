@@ -37,3 +37,5 @@ def create_handler(args):
         config_paths = build_flake_configs(flake_path, config_names)
 
         print(config_paths)
+
+        print(nix_utils.get_path_references(config_paths["vm1"]))
