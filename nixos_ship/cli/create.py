@@ -15,4 +15,10 @@ def create_handler(args):
             "nixosConfigurations",
             "builtins.attrNames")
 
+        for idx, name in enumerate(conf_names):
+            # build each system configuration
+            nix_utils.build_flake(flake_path,
+                f"nixosConfigurations.\"{name}\".config.system.build.toplevel",
+                workdir/f"system_{idx}")
+
         print(conf_names)
