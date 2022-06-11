@@ -7,6 +7,10 @@ def build_create_parser(subparsers):
         "create", help="create a shipfile")
 
     create_parser.add_argument(
+        "rev", type=str
+    )
+
+    create_parser.add_argument(
         "dest_file", type=argparse.FileType("wb")
     )
 

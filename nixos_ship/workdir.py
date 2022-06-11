@@ -1,8 +1,10 @@
 import os
 import shutil
 import signal
-from pathlib import Path
-from tempfile import TemporaryDirectory
+import pathlib
+import tempfile
+
+from . import git_utils
 
 class DisableKeyboardInterrupt:
     def __enter__(self):
@@ -16,12 +18,13 @@ class DisableKeyboardInterrupt:
 
 class Workdir:
     def __init__(self):
-        self.directory = TemporaryDirectory().name
-        self.directory.mkdir()
+        self.path = pathlib.Path(tempfile.TemporaryDirectory().name)
+        self.path.mkdir()
 
     def __enter__(self):
-        return self
+        return self.path
 
     def __exit__(self, exc_type, exc_value, traceback):
         with DisableKeyboardInterrupt():
-            shutil.rmtree(self.directory)
+            shutil.rmtree(self.path)
+            git_utils.prune_worktrees()
