@@ -76,3 +76,51 @@ def export_store_paths(store_paths, dest):
     if proc.wait() > 0:
         raise subprocess.CalledProcessError()
 
+# import some store paths
+def import_store_paths(src):
+    proc = subprocess.Popen([
+        "nix-store",
+        "--import"
+    ], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+
+    buf = bytearray(1048576)
+    while True:
+        n = src.readinto(buf)
+        if n == 0:
+            break
+
+        proc.stdin.write(buf[:n])
+
+    proc.stdin.close()
+
+    if proc.wait() > 0:
+        raise subprocess.CalledProcessError()
+
+# atomically create a GC root for the given store path at the given location
+# if the store path exists. returns True if successful or False if the path
+# did not exist
+def create_root_if_path_exists(store_path, root):
+    if root.exists() or root.is_symlink():
+        raise ValueError(f"proposed GC root {root} already exists")
+
+    try:
+        subprocess.run([
+            "nix-store",
+            "--option", "substitute", "false",
+            "--realise",
+            "--add-root", str(root),
+            store_path
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        # assume it failed because the path does not exist
+        return False
+
+    return True
+
+# set the given profile's latest version to contain the given path
+def set_profile_path(profile, path):
+    subprocess.run([
+        "nix-env",
+        "--profile", str(profile),
+        "--set", path
+    ], check=True, stdout=subprocess.DEVNULL)
