@@ -10,8 +10,13 @@ class ShipfileWriter:
     def close():
         self.zip.close()
 
-    def open_store_file(self):
+    def open_store_paths_file(self):
         f = self.zip.open("nixos-ship-data/store_paths.nar",
             "w", force_zip64=True)
+
+        return f
+
+    def open_path_info_file(self):
+        f = self.zip.open("nixos-ship-data/path_info.json", "w")
 
         return f

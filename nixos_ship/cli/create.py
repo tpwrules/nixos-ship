@@ -1,3 +1,5 @@
+import json
+
 from ..workdir import Workdir
 
 from .. import git_utils
@@ -66,4 +68,5 @@ def create_handler(args):
             "export_paths": export_paths,
             "config_graphs": config_graphs,
         }, sort_keys=True, indent=2).encode('utf8'))
+
         path_info_file.close()
