@@ -7,9 +7,11 @@
   outputs = { self, nixpkgs, flake-utils }:
     nixpkgs.lib.foldr nixpkgs.lib.recursiveUpdate { } [
       (flake-utils.lib.eachDefaultSystem (system: {
-        packages.nixos-ship = import ./. {
+        packages.nixos-ship = (import ./. {
           pkgs = nixpkgs.legacyPackages.${system};
-        };
+        }).overrideAttrs (o: {postInstall = (o.postInstall or "") + ''
+          echo "${nixpkgs} ${flake-utils} >> $out/bin/.inputs"
+        '';});
 
         defaultPackage = self.packages.${system}.nixos-ship;
       }))
