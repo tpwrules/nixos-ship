@@ -56,3 +56,23 @@ def get_path_references(store_path):
             graph[path] = []
 
     return graph
+
+# export some store paths
+def export_store_paths(store_paths, dest):
+    proc = subprocess.Popen([
+        "nix-store",
+        "--export",
+        *store_paths
+    ], stdout=subprocess.PIPE)
+
+    buf = bytearray(1048576)
+    while True:
+        n = proc.stdout.readinto(buf)
+        if n == 0:
+            break
+
+        dest.write(buf[:n])
+
+    if proc.wait() > 0:
+        raise subprocess.CalledProcessError()
+
