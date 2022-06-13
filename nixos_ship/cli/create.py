@@ -1,10 +1,12 @@
 import json
+import itertools
 
 from ..workdir import Workdir
 
 from .. import git_utils
 from .. import nix_utils
 from .. import shipfile
+from .. import nix_store
 
 def get_config_names(flake_path):
     return nix_utils.eval_flake(flake_path,
@@ -25,23 +27,9 @@ def build_flake_configs(flake_path, config_names):
             config_path)
 
         # resolve the symlink to get the actual store path
-        config_paths[name] = config_path.resolve()
+        config_paths[name] = str(config_path.resolve())
 
     return config_paths
-
-def compute_export_paths(config_graphs):
-    seen_paths = set()
-
-    # build a list instead of a set of results so that we preserve order and
-    # don't harm reproducibility
-    export_paths = []
-    for config_graph in config_graphs.values():
-        for path in config_graph.keys():
-            if path not in seen_paths:
-                seen_paths.add(path)
-                export_paths.append(path)
-
-    return export_paths
 
 def create_handler(args):
     source_rev = git_utils.get_commit(args.rev)
@@ -52,21 +40,29 @@ def create_handler(args):
 
         config_names = get_config_names(flake_path)
         config_paths = build_flake_configs(flake_path, config_names)
-        config_graphs = {name: nix_utils.get_path_references(path)
-            for name, path in config_paths.items()}
-        export_paths = compute_export_paths(config_graphs)
 
         sf = shipfile.ShipfileWriter(workdir/"shipfile", args.dest_file)
 
-        store_paths_file = sf.open_store_paths_file()
-        nix_utils.export_store_paths(export_paths, store_paths_file)
-        store_paths_file.close()
+        with nix_store.LocalStore() as store:
+            config_closures = {name: store.query_closure([path])
+                for name, path in config_paths.items()}
 
-        path_info_file = sf.open_path_info_file()
-        path_info_file.write(json.dumps({
-            "config_paths": {str(k): str(v) for k, v in config_paths.items()},
-            "export_paths": export_paths,
-            "config_graphs": config_graphs,
-        }, sort_keys=True, indent=2).encode('utf8'))
+            paths = set(itertools.chain(*config_closures.values()))
+            path_infos = store.query_path_infos(list(paths))
+            path_infos = nix_store.sort_path_infos(path_infos)
 
-        path_info_file.close()
+            path_info_file = sf.open_path_info_file()
+            path_info_file.write(json.dumps({
+                "config_paths":
+                    {str(k): str(v) for k, v in config_paths.items()},
+                "path_infos": [p._asdict() for p in path_infos],
+            }, indent=2).encode('utf8'))
+            path_info_file.close()
+
+            store_paths_file = sf.open_store_paths_file()
+            for path_info in path_infos:
+                store.dump_nar_into(path_info.path, path_info.nar_size,
+                    store_paths_file)
+            store_paths_file.close()
+
+        sf.close()

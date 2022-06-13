@@ -7,11 +7,11 @@ class ShipfileWriter:
 
         self.zip = zipfile.ZipFile(path, mode="w")
 
-    def close():
+    def close(self):
         self.zip.close()
 
     def open_store_paths_file(self):
-        f = self.zip.open("nixos-ship-data/store_paths.nar",
+        f = self.zip.open("nixos-ship-data/store_paths.bin",
             "w", force_zip64=True)
 
         return f
@@ -28,11 +28,11 @@ class ShipfileReader:
 
         self.zip = zipfile.ZipFile(path, mode="r")
 
-    def close():
+    def close(self):
         self.zip.close()
 
     def open_store_paths_file(self):
-        f = self.zip.open("nixos-ship-data/store_paths.nar", "r")
+        f = self.zip.open("nixos-ship-data/store_paths.bin", "r")
 
         return f
 
