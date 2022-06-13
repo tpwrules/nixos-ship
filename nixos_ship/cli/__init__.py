@@ -16,6 +16,11 @@ def build_create_parser(subparsers):
     )
 
     create_parser.add_argument(
+        "--delta", type=str,
+        help="rev we assume the recipient already has"
+    )
+
+    create_parser.add_argument(
         "--level", type=str, choices=["ultra", "normal", "fast"],
         default="normal",
         help="tune compression level for your patience"

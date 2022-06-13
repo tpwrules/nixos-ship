@@ -58,25 +58,42 @@ def install_handler(args):
         config_paths = path_info["config_paths"]
         path_infos = nix_store.sort_path_infos([
             nix_store.PathInfo(**p) for p in path_info["path_infos"]])
+        path_list = set(path_info["path_list"])
 
         config_path = config_paths[args.name]
         needed_paths = compute_needed_paths(workdir, config_path, path_infos)
 
+        missing = False
         if len(needed_paths) > 0:
-            with nix_store.LocalStore() as store:
-                store_paths_file = sf.open_store_paths_file()
-                needed_set = set(needed_paths)
-                for path_info in path_infos:
-                    if path_info.path not in needed_set:
-                        store_paths_file.seek(path_info.nar_size, os.SEEK_CUR)
-                    else:
-                        print(path_info.path)
-                        store.add_nar_from(path_info, store_paths_file)
+            for path in needed_paths:
+                if path not in path_list:
+                    print(f"error: missing path {path}")
+                    missing = True
 
-                store_paths_file.close()
+            if missing:
+                print("sorry, cannot install")
+            else:
+                with nix_store.LocalStore() as store:
+                    store_paths_file = sf.open_store_paths_file()
+                    needed_set = set(needed_paths)
+                    for path_info in path_infos:
+                        if path_info.path not in path_list:
+                            continue
+                        if path_info.path not in needed_set:
+                            store_paths_file.seek(path_info.nar_size,
+                                os.SEEK_CUR)
+                        else:
+                            print(path_info.path)
+                            store.add_nar_from(path_info, store_paths_file)
 
-        nix_utils.set_profile_path("/nix/var/nix/profiles/system", config_path)
+                    store_paths_file.close()
 
-        subprocess.run([
-            config_path+"/bin/switch-to-configuration", "boot"
-        ], check=True)
+        if not missing:
+            nix_utils.set_profile_path("/nix/var/nix/profiles/system",
+                config_path)
+
+            subprocess.run([
+                config_path+"/bin/switch-to-configuration", "boot"
+            ], check=True)
+
+            print("install succeeded, please reboot")
