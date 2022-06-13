@@ -15,6 +15,12 @@ def build_create_parser(subparsers):
         "dest_file", type=argparse.FileType("wb")
     )
 
+    create_parser.add_argument(
+        "--level", type=str, choices=["ultra", "normal", "fast"],
+        default="normal",
+        help="tune compression level for your patience"
+    )
+
     create_parser.set_defaults(handler=create_handler)
     return create_parser
 

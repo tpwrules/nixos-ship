@@ -11,19 +11,32 @@ class ShipfileWriter:
     def close(self):
         self.zip.close()
 
-    def open_store_paths_file(self):
+    def open_store_paths_file(self, compression="normal"):
         f = self.zip.open("nixos-ship-data/store_paths.bin.zst",
             "w", force_zip64=True)
 
-        compressor = zstandard.ZstdCompressor(level=9, threads=-1)
+        if compression == "ultra":
+            params = zstandard.ZstdCompressionParameters.from_level(22,
+                enable_ldm=True, window_log=31, threads=-1)
+        elif compression == "normal":
+            params = zstandard.ZstdCompressionParameters.from_level(9,
+                enable_ldm=True, window_log=31, threads=-1)
+        elif compression == "fast":
+            params = zstandard.ZstdCompressionParameters.from_level(3,
+                threads=-1)
+
+        compressor = zstandard.ZstdCompressor(compression_params=params)
         writer = compressor.stream_writer(f)
 
         return writer
 
     def open_path_info_file(self):
-        f = self.zip.open("nixos-ship-data/path_info.json", "w")
+        f = self.zip.open("nixos-ship-data/path_info.json.zst", "w")
 
-        return f
+        compressor = zstandard.ZstdCompressor(level=22)
+        writer = compressor.stream_writer(f)
+
+        return writer
 
 class ShipfileReader:
     def __init__(self, workdir, path):
@@ -38,12 +51,15 @@ class ShipfileReader:
     def open_store_paths_file(self):
         f = self.zip.open("nixos-ship-data/store_paths.bin.zst", "r")
 
-        compressor = zstandard.ZstdDecompressor()
-        reader = compressor.stream_reader(f)
+        decompressor = zstandard.ZstdDecompressor()
+        reader = decompressor.stream_reader(f)
 
         return reader
 
     def open_path_info_file(self):
-        f = self.zip.open("nixos-ship-data/path_info.json", "r")
+        f = self.zip.open("nixos-ship-data/path_info.json.zst", "r")
 
-        return f
+        decompressor = zstandard.ZstdDecompressor()
+        reader = decompressor.stream_reader(f)
+
+        return reader

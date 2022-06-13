@@ -12,7 +12,7 @@ python3.pkgs.buildPythonApplication rec {
 
   makeWrapperArgs =
     let
-      binPath = [ pkgs.nixVersions.stable or nix_2_4 git lrzip ];
+      binPath = [ pkgs.nixVersions.stable or nix_2_4 git ];
     in
     [
       "--prefix PATH : ${lib.makeBinPath binPath}"

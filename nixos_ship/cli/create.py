@@ -59,7 +59,7 @@ def create_handler(args):
             }, indent=2).encode('utf8'))
             path_info_file.close()
 
-            store_paths_file = sf.open_store_paths_file()
+            store_paths_file = sf.open_store_paths_file(compression=args.level)
             for path_info in path_infos:
                 store.dump_nar_into(path_info.path, path_info.nar_size,
                     store_paths_file)
