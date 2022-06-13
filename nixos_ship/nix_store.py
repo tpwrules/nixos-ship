@@ -89,7 +89,7 @@ class StoreCommunicator:
     def __init__(self, fin, fout):
         self._fin = fin
         self._fout = fout
-        self._buf = memoryview(bytearray(1048576))
+        self._buf = memoryview(bytearray(131072))
 
         # send hellos
         self._write_num(SERVE_MAGIC_1)

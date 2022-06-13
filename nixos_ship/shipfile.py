@@ -1,4 +1,5 @@
 import zipfile
+import zstandard
 
 class ShipfileWriter:
     def __init__(self, workdir, path):
@@ -11,10 +12,13 @@ class ShipfileWriter:
         self.zip.close()
 
     def open_store_paths_file(self):
-        f = self.zip.open("nixos-ship-data/store_paths.bin",
+        f = self.zip.open("nixos-ship-data/store_paths.bin.zst",
             "w", force_zip64=True)
 
-        return f
+        compressor = zstandard.ZstdCompressor(level=9, threads=-1)
+        writer = compressor.stream_writer(f)
+
+        return writer
 
     def open_path_info_file(self):
         f = self.zip.open("nixos-ship-data/path_info.json", "w")
@@ -32,9 +36,12 @@ class ShipfileReader:
         self.zip.close()
 
     def open_store_paths_file(self):
-        f = self.zip.open("nixos-ship-data/store_paths.bin", "r")
+        f = self.zip.open("nixos-ship-data/store_paths.bin.zst", "r")
 
-        return f
+        compressor = zstandard.ZstdDecompressor()
+        reader = compressor.stream_reader(f)
+
+        return reader
 
     def open_path_info_file(self):
         f = self.zip.open("nixos-ship-data/path_info.json", "r")
