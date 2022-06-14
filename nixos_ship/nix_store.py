@@ -203,7 +203,7 @@ class StoreCommunicator:
         self._write_num(path_info.nar_size)
         self._write_num(0) # ultimate: did we actually build this nar?
         self._write_strings(path_info.sigs)
-        self._write_strings(path_info.ca_info)
+        self._write_string(path_info.ca_info)
 
         size = path_info.nar_size
         while size > 0:
