@@ -34,7 +34,7 @@ def build_flake_configs(flake_path, config_names):
 def create_handler(args):
     source_rev = git_utils.get_commit(args.rev)
 
-    with Workdir() as workdir:
+    with Workdir(autoprune=True) as workdir:
         flake_path = workdir/"worktree"
         git_utils.create_worktree(flake_path, source_rev)
 

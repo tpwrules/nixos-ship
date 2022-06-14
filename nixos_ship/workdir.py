@@ -17,7 +17,8 @@ class DisableKeyboardInterrupt:
         signal.signal(signal.SIGINT, self.old_handler)
 
 class Workdir:
-    def __init__(self):
+    def __init__(self, autoprune=False):
+        self.autoprune = autoprune
         self.path = pathlib.Path(tempfile.TemporaryDirectory().name)
         self.path.mkdir()
 
@@ -27,4 +28,5 @@ class Workdir:
     def __exit__(self, exc_type, exc_value, traceback):
         with DisableKeyboardInterrupt():
             shutil.rmtree(self.path)
-            git_utils.prune_worktrees()
+            if self.autoprune:
+                git_utils.prune_worktrees()
