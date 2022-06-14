@@ -51,7 +51,8 @@ class ShipfileReader:
     def open_store_paths_file(self):
         f = self.zip.open("nixos-ship-data/store_paths.bin.zst", "r")
 
-        decompressor = zstandard.ZstdDecompressor()
+        # set max window size to accommodate the large window modes
+        decompressor = zstandard.ZstdDecompressor(max_window_size=2**31)
         reader = decompressor.stream_reader(f)
 
         return reader
