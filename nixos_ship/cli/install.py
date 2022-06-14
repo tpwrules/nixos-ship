@@ -27,8 +27,12 @@ def compute_needed_paths(workdir, config_path, path_infos):
             continue
 
         root_i += 1
-        if nix_utils.create_root_if_path_exists(path, gc_roots/f"r_{root_i}"):
-            # we can now be certain this path exists and we also have the
+        exists = os.path.exists(path) # does this path exist in the store?
+        if exists: # create a GC root so it won't get deleted out from under us
+            exists = nix_utils.create_root_if_path_exists(
+                path, gc_roots/f"r_{root_i}")
+        if exists: # the GC root creation was successful and it still exists
+            # so we can now be certain this path exists and we also have the
             # paths it references
             del needed_paths[path]
             have_paths.add(path)
