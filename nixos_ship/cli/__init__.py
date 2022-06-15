@@ -1,6 +1,7 @@
 import argparse
 
 from .create import create_handler
+from .import_cmd import import_handler
 from .install import install_handler
 
 def build_create_parser(subparsers):
@@ -29,6 +30,23 @@ def build_create_parser(subparsers):
     create_parser.set_defaults(handler=create_handler)
     return create_parser
 
+def build_import_parser(subparsers):
+    import_parser = subparsers.add_parser(
+        "import", help="import a shipfile"
+    )
+
+    import_parser.add_argument(
+        "src_file", type=argparse.FileType("rb")
+    )
+
+    import_parser.add_argument("-n", "--name",
+        type=str, help="name of configuration to import",
+        default=open("/proc/sys/kernel/hostname", "r").read().strip()
+    )
+
+    import_parser.set_defaults(handler=import_handler)
+    return import_parser
+
 def build_install_parser(subparsers):
     install_parser = subparsers.add_parser(
         "install", help="install a shipfile"
@@ -38,9 +56,8 @@ def build_install_parser(subparsers):
         "src_file", type=argparse.FileType("rb")
     )
 
-    install_parser.add_argument(
-        "-n,--name", type=str, help="name of configuration to install",
-        dest="name",
+    install_parser.add_argument("-n", "--name",
+        type=str, help="name of configuration to install",
         default=open("/proc/sys/kernel/hostname", "r").read().strip()
     )
 
@@ -57,6 +74,7 @@ def parse_args(program, args):
 
     parsers = [
         build_create_parser(subparsers),
+        build_import_parser(subparsers),
         build_install_parser(subparsers),
     ]
 
