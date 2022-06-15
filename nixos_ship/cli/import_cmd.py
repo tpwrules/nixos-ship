@@ -9,7 +9,14 @@ from .. import shipfile
 from .. import nix_store
 
 # determine which paths we already have and which we need from this file
+<<<<<<< HEAD
 def compute_needed_paths(workdir, config_path, path_infos):
+    print("Computing the set of paths which needed to be imported...")
+=======
+def compute_needed_paths(workdir, config_path, path_infos, store_root):
+    print("Computing the set of paths which need to be imported...")
+>>>>>>> 76bad8a (blah)
+
     # make gc roots for all the paths we have so we can be certain they won't go
     # away if there is gc activity
     gc_roots = workdir/"have_roots"

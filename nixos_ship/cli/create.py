@@ -22,6 +22,7 @@ def build_flake_configs(flake_path, config_names):
         # are troubling for the filesystem
         config_path = workdir/f"{flake_path.name}_configs"/f"config_{idx}"
 
+        print(f"Building flake for config {name}...")
         nix_utils.build_flake(flake_path,
             f"nixosConfigurations.\"{name}\".config.system.build.toplevel",
             config_path)
@@ -54,6 +55,7 @@ def create_handler(args):
         sf = shipfile.ShipfileWriter(workdir/"shipfile", args.dest_file)
 
         with nix_store.LocalStore() as store:
+            print("Computing set of paths to ship...")
             config_closures = {name: store.query_closure([path])
                 for name, path in config_paths.items()}
 
@@ -87,6 +89,7 @@ def create_handler(args):
             }, indent=2).encode('utf8'))
             path_info_file.close()
 
+            print("Writing store paths...")
             store_paths_file = sf.open_store_paths_file(compression=args.level)
             for path_info in path_infos:
                 if path_info.path in paths:
