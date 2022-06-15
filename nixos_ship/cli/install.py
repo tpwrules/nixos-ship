@@ -24,17 +24,37 @@ def install_handler(args):
         path_list = set(path_info["path_list"])
 
         config_path = config_paths[args.name]
-        needed_paths = compute_needed_paths(workdir, config_path, path_infos)
+        needed_paths = compute_needed_paths(
+            workdir, config_path, path_infos, args.root)
 
         import_successful = import_needed_paths(
-            sf, path_list, path_infos, needed_paths)
+            sf, path_list, path_infos, needed_paths, args.root)
 
         if import_successful:
-            nix_utils.set_profile_path("/nix/var/nix/profiles/system",
-                config_path)
+            nix_utils.set_profile_path(args.root+"/nix/var/nix/profiles/system",
+                config_path, args.root)
+
+            enter_cmd = []
+            if args.root != "":
+                # convince nix tooling this is a nixos partition
+                try:
+                    os.mkdir(args.root+"/etc")
+                except FileExistsError:
+                    pass
+                open(args.root+"/etc/NIXOS", "w").close()
+
+                subprocess.run([ # from nixos-install, for grub
+                    "ln", "-sfn", "/proc/mounts", args.root+"/etc/mtab"
+                ], check=True)
+                enter_cmd = ["nixos-enter", "--root", args.root, "--"]
+
+            env = os.environ.copy()
+            if args.install_bootloader:
+                env["NIXOS_INSTALL_BOOTLOADER"] = "1"
 
             subprocess.run([
+                *enter_cmd,
                 config_path+"/bin/switch-to-configuration", "boot"
-            ], check=True)
+            ], check=True, env=env)
 
             print("install succeeded, please reboot")

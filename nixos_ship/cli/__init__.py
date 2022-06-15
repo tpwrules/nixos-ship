@@ -45,6 +45,11 @@ def build_import_parser(subparsers):
         default=open("/proc/sys/kernel/hostname", "r").read().strip()
     )
 
+    import_parser.add_argument("--root",
+        type=str, help="root of system to import configuration into",
+        default=""
+    )
+
     import_parser.set_defaults(handler=import_handler)
     return import_parser
 
@@ -61,6 +66,14 @@ def build_install_parser(subparsers):
         type=str, help="name of configuration to install",
         default=open("/proc/sys/kernel/hostname", "r").read().strip()
     )
+
+    install_parser.add_argument("--root",
+        type=str, help="root of system to install configuration into",
+        default=""
+    )
+
+    install_parser.add_argument("--install-bootloader",
+        action="store_true", help="force install system bootloader")
 
     install_parser.set_defaults(handler=install_handler)
     return install_parser

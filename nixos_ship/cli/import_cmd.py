@@ -9,13 +9,8 @@ from .. import shipfile
 from .. import nix_store
 
 # determine which paths we already have and which we need from this file
-<<<<<<< HEAD
-def compute_needed_paths(workdir, config_path, path_infos):
-    print("Computing the set of paths which needed to be imported...")
-=======
 def compute_needed_paths(workdir, config_path, path_infos, store_root):
     print("Computing the set of paths which need to be imported...")
->>>>>>> 76bad8a (blah)
 
     # make gc roots for all the paths we have so we can be certain they won't go
     # away if there is gc activity
@@ -34,10 +29,11 @@ def compute_needed_paths(workdir, config_path, path_infos, store_root):
             continue
 
         root_i += 1
-        exists = os.path.exists(path) # does this path exist in the store?
+        # does this path exist in the store?
+        exists = os.path.exists(store_root+path)
         if exists: # create a GC root so it won't get deleted out from under us
             exists = nix_utils.create_root_if_path_exists(
-                path, gc_roots/f"r_{root_i}")
+                path, gc_roots/f"r_{root_i}", store_root)
         if exists: # the GC root creation was successful and it still exists
             # so we can now be certain this path exists and we also have the
             # paths it references
@@ -58,7 +54,7 @@ def compute_needed_paths(workdir, config_path, path_infos, store_root):
     # return the paths we don't have in the correct order
     return list(needed_paths.keys())[::-1]
 
-def import_needed_paths(sf, path_list, path_infos, needed_paths):
+def import_needed_paths(sf, path_list, path_infos, needed_paths, store_root):
     missing = False
     for path in needed_paths:
         if path not in path_list:
@@ -69,7 +65,7 @@ def import_needed_paths(sf, path_list, path_infos, needed_paths):
         print("sorry, cannot import")
         return False
 
-    with nix_store.LocalStore() as store:
+    with nix_store.LocalStore(store_root) as store:
         store_paths_file = sf.open_store_paths_file()
         needed_set = set(needed_paths)
         for path_info in path_infos:
@@ -99,6 +95,7 @@ def import_handler(args):
         path_list = set(path_info["path_list"])
 
         config_path = config_paths[args.name]
-        needed_paths = compute_needed_paths(workdir, config_path, path_infos)
+        needed_paths = compute_needed_paths(
+            workdir, config_path, path_infos, args.root)
 
-        import_needed_paths(sf, path_list, path_infos, needed_paths)
+        import_needed_paths(sf, path_list, path_infos, needed_paths, args.root)

@@ -60,12 +60,14 @@ def sort_path_infos(path_infos):
     return sorted_path_infos
 
 class LocalStore:
-    def __init_(self):
+    def __init__(self, store_root=""):
         self._proc = None
+        self._store_root = store_root
 
     def __enter__(self):
         self._proc = subprocess.Popen([
-            "nix-store", "--serve", "--write"
+            "nix-store", "--serve", "--write",
+            "--store", self._store_root,
         ], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         
         c = None

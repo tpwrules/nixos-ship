@@ -29,7 +29,7 @@ def build_flake(flake_path, attr, gc_root):
 # atomically create a GC root for the given store path at the given location
 # if the store path exists. returns True if successful or False if the path
 # did not exist
-def create_root_if_path_exists(store_path, root):
+def create_root_if_path_exists(store_path, root, store_root=""):
     if root.exists() or root.is_symlink():
         raise ValueError(f"proposed GC root {root} already exists")
 
@@ -39,6 +39,7 @@ def create_root_if_path_exists(store_path, root):
             "--option", "substitute", "false",
             "--realise",
             "--add-root", str(root),
+            "--store", store_root,
             store_path
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError:
@@ -48,9 +49,10 @@ def create_root_if_path_exists(store_path, root):
     return True
 
 # set the given profile's latest version to contain the given path
-def set_profile_path(profile, path):
+def set_profile_path(profile, path, store_root=""):
     subprocess.run([
         "nix-env",
         "--profile", str(profile),
-        "--set", path
+        "--set", path,
+        "--store", store_root,
     ], check=True, stdout=subprocess.DEVNULL)
