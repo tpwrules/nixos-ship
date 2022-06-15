@@ -9,11 +9,12 @@ def build_create_parser(subparsers):
         "create", help="create a shipfile")
 
     create_parser.add_argument(
-        "rev", type=str
+        "dest_file", type=argparse.FileType("wb")
     )
 
     create_parser.add_argument(
-        "dest_file", type=argparse.FileType("wb")
+        "--rev", type=str, default="HEAD",
+        help="rev to create the shipfile from (defaults to HEAD)"
     )
 
     create_parser.add_argument(
