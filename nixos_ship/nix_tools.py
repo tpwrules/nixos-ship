@@ -1,3 +1,5 @@
+# functions for interacting with the nix command line tools
+
 import subprocess
 import json
 

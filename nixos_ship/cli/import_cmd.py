@@ -4,7 +4,7 @@ import os
 
 from ..workdir import Workdir
 
-from .. import nix_utils
+from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
 
@@ -32,7 +32,7 @@ def compute_needed_paths(workdir, config_path, path_infos, store_root):
         # does this path exist in the store?
         exists = os.path.exists(store_root+path)
         if exists: # create a GC root so it won't get deleted out from under us
-            exists = nix_utils.create_root_if_path_exists(
+            exists = nix_tools.create_root_if_path_exists(
                 path, gc_roots/f"r_{root_i}", store_root)
         if exists: # the GC root creation was successful and it still exists
             # so we can now be certain this path exists and we also have the

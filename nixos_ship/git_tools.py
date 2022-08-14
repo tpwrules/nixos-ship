@@ -1,3 +1,4 @@
+# functions for interacting with the git command line tools
 import subprocess
 
 # get the exact commit hash for the given commit-ish thing

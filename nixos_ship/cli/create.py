@@ -3,13 +3,13 @@ import itertools
 
 from ..workdir import Workdir
 
-from .. import git_utils
-from .. import nix_utils
+from .. import git_tools
+from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
 
 def get_config_names(flake_path):
-    return sorted(nix_utils.eval_flake(flake_path,
+    return sorted(nix_tools.eval_flake(flake_path,
         "nixosConfigurations",
         "builtins.attrNames"))
 
@@ -23,7 +23,7 @@ def build_flake_configs(flake_path, config_names):
         config_path = workdir/f"{flake_path.name}_configs"/f"config_{idx}"
 
         print(f"Building flake for config {name}...")
-        nix_utils.build_flake(flake_path,
+        nix_tools.build_flake(flake_path,
             f"nixosConfigurations.\"{name}\".config.system.build.toplevel",
             config_path)
 
@@ -33,16 +33,16 @@ def build_flake_configs(flake_path, config_names):
     return config_paths
 
 def create_handler(args):
-    source_rev = git_utils.get_commit(args.rev)
+    source_rev = git_tools.get_commit(args.rev)
 
     with Workdir(autoprune=True) as workdir:
         flake_path = workdir/"worktree"
-        git_utils.create_worktree(flake_path, source_rev)
+        git_tools.create_worktree(flake_path, source_rev)
 
         if args.delta is not None:
             delta_flake_path = workdir/"delta_worktree"
-            git_utils.create_worktree(delta_flake_path,
-                git_utils.get_commit(args.delta))
+            git_tools.create_worktree(delta_flake_path,
+                git_tools.get_commit(args.delta))
 
         config_names = get_config_names(flake_path)
         config_paths = build_flake_configs(flake_path, config_names)

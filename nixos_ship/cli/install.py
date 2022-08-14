@@ -4,7 +4,7 @@ import os
 
 from ..workdir import Workdir
 
-from .. import nix_utils
+from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
 
@@ -31,7 +31,7 @@ def install_handler(args):
             sf, path_list, path_infos, needed_paths, args.root)
 
         if import_successful:
-            nix_utils.set_profile_path(args.root+"/nix/var/nix/profiles/system",
+            nix_tools.set_profile_path(args.root+"/nix/var/nix/profiles/system",
                 config_path, args.root)
 
             enter_cmd = []

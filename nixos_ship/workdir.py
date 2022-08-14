@@ -4,7 +4,7 @@ import signal
 import pathlib
 import tempfile
 
-from . import git_utils
+from . import git_tools
 
 class DisableKeyboardInterrupt:
     def __enter__(self):
@@ -29,4 +29,4 @@ class Workdir:
         with DisableKeyboardInterrupt():
             shutil.rmtree(self.path)
             if self.autoprune:
-                git_utils.prune_worktrees()
+                git_tools.prune_worktrees()
