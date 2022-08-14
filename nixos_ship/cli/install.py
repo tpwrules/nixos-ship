@@ -10,6 +10,33 @@ from .. import nix_store
 
 from .import_cmd import compute_needed_paths, import_needed_paths
 
+def build_install_parser(subparsers):
+    import argparse
+
+    install_parser = subparsers.add_parser(
+        "install", help="install a shipfile"
+    )
+
+    install_parser.add_argument(
+        "src_file", type=argparse.FileType("rb")
+    )
+
+    install_parser.add_argument("-n", "--name",
+        type=str, help="name of configuration to install",
+        default=open("/proc/sys/kernel/hostname", "r").read().strip()
+    )
+
+    install_parser.add_argument("--root",
+        type=str, help="root of system to install configuration into",
+        default=""
+    )
+
+    install_parser.add_argument("--install-bootloader",
+        action="store_true", help="force install system bootloader")
+
+    install_parser.set_defaults(handler=install_handler)
+    return install_parser
+
 def install_handler(args):
     with Workdir() as workdir:
         sf = shipfile.ShipfileReader(workdir/"shipfile", args.src_file)

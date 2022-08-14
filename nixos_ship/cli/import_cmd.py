@@ -8,6 +8,30 @@ from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
 
+def build_import_parser(subparsers):
+    import argparse
+
+    import_parser = subparsers.add_parser(
+        "import", help="import a shipfile"
+    )
+
+    import_parser.add_argument(
+        "src_file", type=argparse.FileType("rb")
+    )
+
+    import_parser.add_argument("-n", "--name",
+        type=str, help="name of configuration to import",
+        default=open("/proc/sys/kernel/hostname", "r").read().strip()
+    )
+
+    import_parser.add_argument("--root",
+        type=str, help="root of system to import configuration into",
+        default=""
+    )
+
+    import_parser.set_defaults(handler=import_handler)
+    return import_parser
+
 # determine which paths we already have and which we need from this file
 def compute_needed_paths(workdir, config_path, path_infos, store_root):
     print("Computing the set of paths which need to be imported...")

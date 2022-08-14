@@ -8,6 +8,35 @@ from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
 
+def build_create_parser(subparsers):
+    import argparse
+
+    create_parser = subparsers.add_parser(
+        "create", help="create a shipfile")
+
+    create_parser.add_argument(
+        "dest_file", type=argparse.FileType("wb")
+    )
+
+    create_parser.add_argument(
+        "--rev", type=str, default="HEAD",
+        help="rev to create the shipfile from (defaults to HEAD)"
+    )
+
+    create_parser.add_argument(
+        "--delta", type=str,
+        help="rev we assume the recipient already has"
+    )
+
+    create_parser.add_argument(
+        "--level", type=str, choices=["ultra", "normal", "fast"],
+        default="normal",
+        help="tune compression level for your patience"
+    )
+
+    create_parser.set_defaults(handler=create_handler)
+    return create_parser
+
 def get_config_names(flake_path):
     return sorted(nix_tools.eval_flake(flake_path,
         "nixosConfigurations",
