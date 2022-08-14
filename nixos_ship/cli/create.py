@@ -15,7 +15,7 @@ def build_create_parser(subparsers):
         "create", help="create a shipfile")
 
     create_parser.add_argument(
-        "dest_file", type=argparse.FileType("wb")
+        "dest_file", type=str
     )
 
     create_parser.add_argument(
@@ -81,7 +81,9 @@ def create_handler(args):
             delta_config_paths = build_flake_configs(
                 delta_flake_path, delta_config_names)
 
-        sf = shipfile.ShipfileWriter(workdir/"shipfile", args.dest_file)
+        sf = shipfile.ShipfileWriter(workdir/"shipfile", args.dest_file,
+            compression=args.level)
+        sf.write_version_info()
 
         with nix_store.LocalStore() as store:
             print("Computing set of paths to ship...")
@@ -109,21 +111,18 @@ def create_handler(args):
 
                 paths = set(itertools.chain(*config_closures.values()))
 
-            path_info_file = sf.open_path_info_file()
-            path_info_file.write(json.dumps({
-                "config_paths":
-                    {str(k): str(v) for k, v in config_paths.items()},
-                "path_list": nix_store.sort_paths(list(paths)),
-                "path_infos": [p._asdict() for p in path_infos],
-            }, indent=2).encode('utf8'))
-            path_info_file.close()
+            sf.write_config_info(config_paths)
+
+            sf.write_store_info()
+            for p in path_infos:
+                sf.write_narinfo(p, in_file=p.path in paths)
 
             print("Writing store paths...")
-            store_paths_file = sf.open_store_paths_file(compression=args.level)
             for path_info in path_infos:
                 if path_info.path in paths:
                     store.dump_nar_into(path_info.path, path_info.nar_size,
-                        store_paths_file)
-            store_paths_file.close()
+                        lambda fp: sf.write_nar(
+                            path_info.nar_hash.split(":")[1],
+                            path_info.nar_size, fp))
 
         sf.close()

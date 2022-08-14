@@ -182,18 +182,12 @@ class StoreCommunicator:
 
         return path_infos
 
-    def dump_nar_into(self, path, size, file):
+    def dump_nar_into(self, path, size, ffp):
         self._write_num(ServeCommand.DUMP_STORE_PATH)
         self._write_string(path)
         self._fout.flush()
 
-        while size > 0:
-            num_read = self._fin.readinto(self._buf[:min(size, len(self._buf))])
-            if num_read == 0:
-                break
-
-            file.write(self._buf[:num_read])
-            size -= num_read
+        ffp(self._fin)
 
     def add_nar_from(self, path_info, file):
         self._write_num(ServeCommand.ADD_TO_STORE_NAR)
