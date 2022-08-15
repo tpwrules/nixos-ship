@@ -30,10 +30,8 @@ class ShipfileWriter:
         compressor = get_compressor(compression)
         self._file = open(path, mode="wb")
         self._writer = compressor.stream_writer(self._file)
-        # 128K buf size picked because that's what the zstandard library
-        # uses as its default buffer sizes
         self._tar = tarfile.open(fileobj=self._writer, mode="w|",
-            format=tarfile.PAX_FORMAT, copybufsize=131072)
+            format=tarfile.PAX_FORMAT)
 
     def close(self):
         self._tar.close()
