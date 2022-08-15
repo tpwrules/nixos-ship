@@ -16,7 +16,7 @@ def build_import_parser(subparsers):
     )
 
     import_parser.add_argument(
-        "src_file", type=argparse.FileType("rb")
+        "src_file", type=str
     )
 
     import_parser.add_argument("-n", "--name",
@@ -90,35 +90,29 @@ def import_needed_paths(sf, path_list, path_infos, needed_paths, store_root):
         return False
 
     with nix_store.LocalStore(store_root) as store:
-        store_paths_file = sf.open_store_paths_file()
         needed_set = set(needed_paths)
         for path_info in path_infos:
             if path_info.path not in path_list:
                 continue
-            if path_info.path not in needed_set:
-                store_paths_file.seek(path_info.nar_size, os.SEEK_CUR)
-            else:
+            if path_info.path in needed_set:
                 print("importing", path_info.path)
-                store.add_nar_from(path_info, store_paths_file)
-
-        store_paths_file.close()
+                sf.source_nar_into(path_info.nar_hash,
+                    lambda fp: store.sink_nar_from(path_info, fp))
 
     return True
 
 def import_handler(args):
     with Workdir() as workdir:
         sf = shipfile.ShipfileReader(workdir/"shipfile", args.src_file)
+        sf.check_version_info()
 
-        path_info_file = sf.open_path_info_file()
-        path_info = json.loads(path_info_file.read().decode('utf8'))
-        path_info_file.close()
+        sf.read_metadata()
+        sf.read_store_metadata()
 
-        config_paths = path_info["config_paths"]
-        path_infos = nix_store.sort_path_infos([
-            nix_store.PathInfo(**p) for p in path_info["path_infos"]])
-        path_list = set(path_info["path_list"])
+        path_infos = nix_store.sort_path_infos(sf.path_infos)
+        path_list = set(sf.path_list)
 
-        config_path = config_paths[args.name]
+        config_path = sf.config_info[args.name]
         needed_paths = compute_needed_paths(
             workdir, config_path, path_infos, args.root)
 

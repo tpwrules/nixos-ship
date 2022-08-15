@@ -192,7 +192,9 @@ class StoreCommunicator:
 
         nar_sink_fn(self._fin)
 
-    def add_nar_from(self, path_info, file):
+    def sink_nar_from(self, path_info, fp):
+        # write a nar into the store, taking an fp which the nar data is read
+        # out of
         self._write_num(ServeCommand.ADD_TO_STORE_NAR)
         self._write_string(path_info.path)
         self._write_string(path_info.deriver)
@@ -206,7 +208,7 @@ class StoreCommunicator:
 
         size = path_info.nar_size
         while size > 0:
-            num_read = file.readinto(self._buf[:min(size, len(self._buf))])
+            num_read = fp.readinto(self._buf[:min(size, len(self._buf))])
             if num_read == 0:
                 break
 

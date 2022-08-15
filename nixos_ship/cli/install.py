@@ -18,7 +18,7 @@ def build_install_parser(subparsers):
     )
 
     install_parser.add_argument(
-        "src_file", type=argparse.FileType("rb")
+        "src_file", type=str
     )
 
     install_parser.add_argument("-n", "--name",
@@ -40,17 +40,15 @@ def build_install_parser(subparsers):
 def install_handler(args):
     with Workdir() as workdir:
         sf = shipfile.ShipfileReader(workdir/"shipfile", args.src_file)
+        sf.check_version_info()
 
-        path_info_file = sf.open_path_info_file()
-        path_info = json.loads(path_info_file.read().decode('utf8'))
-        path_info_file.close()
+        sf.read_metadata()
+        sf.read_store_metadata()
 
-        config_paths = path_info["config_paths"]
-        path_infos = nix_store.sort_path_infos([
-            nix_store.PathInfo(**p) for p in path_info["path_infos"]])
-        path_list = set(path_info["path_list"])
+        path_infos = nix_store.sort_path_infos(sf.path_infos)
+        path_list = set(sf.path_list)
 
-        config_path = config_paths[args.name]
+        config_path = sf.config_info[args.name]
         needed_paths = compute_needed_paths(
             workdir, config_path, path_infos, args.root)
 

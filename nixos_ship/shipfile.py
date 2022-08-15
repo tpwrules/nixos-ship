@@ -1,8 +1,11 @@
 import io
 import tarfile
 import json
+import sys
 
 import zstandard
+
+from .nix_store import PathInfo
 
 def get_compressor(compression):
     if compression == "ultra":
@@ -22,6 +25,38 @@ def dump_json(obj):
     dumped = json.dumps(obj,indent=2, sort_keys=True, ensure_ascii=False)
     return dumped.encode("utf8")
 
+def parse_nix_kv(contents):
+    # parse a Nix-style Key: value file
+
+    pairs = contents.split("\n")
+    # if the file ended with a newline, the last pair will be empty
+    if len(pairs) > 0 and pairs[-1].strip() == "":
+        pairs.pop()
+    
+    parsed = {}
+    for pair in pairs:
+        key, value = (c.strip() for c in pair.split(":", maxsplit=1))
+
+        # for some cursed reason, keys can be duplicated. turn duplicated keys
+        # into a list of their values.
+        if key in parsed:
+            lv = parsed[key]
+            if isinstance(lv, list):
+                lv.append(value)
+            else:
+                parsed[key] = [lv, value]
+        else:
+            parsed[key] = value
+
+    return parsed
+
+# something went wrong parsing a shipfile
+class ShipfileError(RuntimeError):
+    pass
+
+# maximum expected size of anything which is not a .nar file
+MAX_METADATA_SIZE = 1048576
+
 class ShipfileWriter:
     def __init__(self, workdir, path, compression="normal"):
         self.workdir = workdir
@@ -30,7 +65,7 @@ class ShipfileWriter:
         compressor = get_compressor(compression)
         self._file = open(path, mode="wb")
         self._writer = compressor.stream_writer(self._file)
-        self._tar = tarfile.open(fileobj=self._writer, mode="w|",
+        self._tar = tarfile.open(fileobj=self._writer, mode="w:",
             format=tarfile.PAX_FORMAT)
 
     def close(self):
@@ -106,24 +141,200 @@ class ShipfileReader:
         self.workdir = workdir
         self.workdir.mkdir(parents=True)
 
-        self.zip = zipfile.ZipFile(path, mode="r")
+        # set max window size to accommodate the large window modes from the
+        # shipfile sender
+        decompressor = zstandard.ZstdDecompressor(max_window_size=2**31)
+        self._file = open(path, mode="rb")
+        self._reader = decompressor.stream_reader(self._file)
+        self._tar = tarfile.open(fileobj=self._reader, mode="r:")
+
+        self._state = "initial"
+        self._ungot_entry = None
 
     def close(self):
-        self.zip.close()
+        self._tar.close()
+        self._reader.close()
+        self._file.close()
 
-    def open_store_paths_file(self):
-        f = self.zip.open("nixos-ship-data/store_paths.bin.zst", "r")
+    def _next_entry(self):
+        # return the next entry from the tarfile
 
-        # set max window size to accommodate the large window modes
-        decompressor = zstandard.ZstdDecompressor(max_window_size=2**31)
-        reader = decompressor.stream_reader(f)
+        if self._ungot_entry is not None:
+            entry = self._ungot_entry
+            self._ungot_entry = None
+            return entry
 
-        return reader
+        while True:
+            entry = self._tar.next()
+            if entry is None: # the file is over
+                return None
+            # we only want file entries
+            if entry.type == tarfile.REGTYPE:
+                break
 
-    def open_path_info_file(self):
-        f = self.zip.open("nixos-ship-data/path_info.json.zst", "r")
+        return entry
 
-        decompressor = zstandard.ZstdDecompressor()
-        reader = decompressor.stream_reader(f)
+    def _unget_entry(self, entry):
+        # take an entry and return it from _next_entry next time
 
-        return reader
+        if self._ungot_entry is not None:
+            raise RuntimeError(f"entry {self._ungot_entry} was already ungot")
+
+        self._ungot_entry = entry
+
+    def check_version_info(self):
+        # read the version info from a shipfile and check that the features
+        # it needs are compatible with what we know about
+
+        if self._state != "initial":
+            raise RuntimeError(f"invalid state {self._state} for version check")
+
+        entry = self._next_entry()
+        if entry is None:
+            raise ShipfileError("shipfile is empty")
+
+        if entry.name != "shipfile/metadata/version_info.json":
+            raise ShipfileError("shipfile starts with incorrect entry "
+                f"{entry.name}")
+
+        contents = self._tar.extractfile(entry).read(entry.size).decode("utf8")
+        version_info = json.loads(contents)
+
+        # very first check in case something changes drastically
+        self._version = version_info.get("version")
+        if self._version != 1:
+            raise ShipfileError(f"unknown version {self._version}")
+
+        try:
+            self._mandatory_features = set(version_info["mandatory_features"])
+            self._optional_features = set(version_info["optional_features"])
+        except KeyError:
+            raise ShipfileError("missing keys in version_info.json")
+
+        if len(self._mandatory_features) > 0:
+            raise ShipfileError("unknown mandatory features "
+                f"{self._mandatory_features}")
+        
+        if len(self._optional_features) > 0:
+            print("WARNING: unknown optional features "
+                f"{self._optional_features}", file=sys.stderr)
+
+        if len(version_info) > 3:
+            raise ShipfileError("unexpected keys in version_info.json")
+
+        self._state = "metadata"
+
+    def read_metadata(self):
+        # read and parse everything in the metadata/ folder
+
+        if self._state != "metadata":
+            raise RuntimeError(f"invalid state {self._state} for metadata read")
+
+        while True:
+            entry = self._next_entry()
+            if entry is None:
+                break
+            if not entry.name.startswith("shipfile/metadata/"):
+                self._unget_entry(entry)
+                break
+
+            if entry.name == "shipfile/metadata/config_info.json":
+                self.config_info = self._read_config_info(entry)
+
+        if self.config_info is None:
+            raise ShipfileError("config_info.json is missing")
+
+        self._state = "store_metadata"
+
+    def read_store_metadata(self):
+        # read and parse everything in the store/ folder (except .nar files)
+
+        if self._state != "store_metadata":
+            raise RuntimeError(f"invalid state {self._state} for "
+                "store metadata read")
+
+        self.path_infos = []
+        self.path_list = []
+        while True:
+            entry = self._next_entry()
+            if entry is None:
+                break
+
+            if (not entry.name.startswith("shipfile/store/")) or \
+                    entry.name.startswith("shipfile/store/nar/"):
+                self._unget_entry(entry)
+                break
+
+            if entry.name == "shipfile/store/nix-cache-info":
+                self.cache_info = self._read_cache_info(entry)
+            elif entry.name.endswith(".narinfo"):
+                path_info, in_file = self._read_narinfo(entry)
+                self.path_infos.append(path_info)
+                if in_file:
+                    self.path_list.append(path_info.path)
+
+        if self.cache_info is None:
+            raise ShipfileError("nix-cache-info is missing")
+
+        self._state = "read_nar"
+
+    def _read_config_info(self, entry):
+        contents = self._tar.extractfile(entry).read(entry.size).decode("utf8")
+        config_info = json.loads(contents)
+
+        # remove indirection of path key
+        return {k: v["path"] for k, v in config_info.items()}
+
+    def _read_cache_info(self, entry):
+        contents = self._tar.extractfile(entry).read(entry.size).decode("utf8")
+        cache_info = parse_nix_kv(contents)
+
+        if cache_info["StoreDir"] != "/nix/store":
+            raise ShipfileError("sorry, we don't pretend to support not "
+                "/nix/store yet!")
+
+        return cache_info
+
+    def _read_narinfo(self, entry):
+        contents = self._tar.extractfile(entry).read(entry.size).decode("utf8")
+        narinfo = parse_nix_kv(contents)
+
+        if narinfo["Compression"] != "none" or \
+                narinfo["FileSize"] != narinfo["NarSize"] or \
+                narinfo["FileHash"] != narinfo["NarHash"]:
+            raise ShipfileError("invalid compression situation")
+
+        in_file = narinfo["URL"] != ""
+        refs = ["/nix/store/"+r.strip() for r in narinfo["References"].split()]
+        deriver = narinfo.get("Deriver", "")
+        if deriver != "":
+            deriver = "/nix/store/"+deriver
+        sigs = narinfo.get("Sig", [])
+        if not isinstance(sigs, list):
+            sigs = [sigs]
+        ca_info = narinfo.get("CA", "")
+
+        path_info = PathInfo(path=narinfo["StorePath"],
+            deriver=deriver,
+            references=refs,
+            nar_size=int(narinfo["NarSize"]),
+            nar_hash=narinfo["NarHash"],
+            ca_info=ca_info,
+            sigs=sigs
+        )
+
+        return path_info, in_file
+
+    def source_nar_into(self, nar_hash, nar_sink_fn):
+        # read a nar from the shipfile, taking a function which is provided the
+        # fp and that reads the nar data out of it
+
+        path = f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar"
+        while True:
+            entry = self._next_entry()
+            if entry is None:
+                raise ShipfileError(f"could not find nar {path}")
+            if entry.name == path:
+                break
+
+        nar_sink_fn(self._tar.extractfile(entry))
