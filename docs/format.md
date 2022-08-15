@@ -5,8 +5,8 @@ extension `.shf`. The members within the archive are fully defined and ordered
 in reference to this documentation. The archive must not contain any members
 (files, directories, or otherwise) not explicitly listed here, with the
 exception of pax extended headers. Unexpected members are ignored for future
-compatibility, but ordering is enforced. Directory members are never explicitly
-written into the archive.
+compatibility. Directory members are never explicitly written into the
+archive.
 
 ## Shipfile Folders
 
@@ -190,7 +190,8 @@ The group of files `shipfile/store/nar/*.nar` contains the actual data for the
 paths contained within the shipfile. Not all paths will be contained as some
 will be assumed to already be on the target system in delta compression mode.
 The `.nar` files must be ordered the same as the `.narinfo` files which
-reference each.
+reference each. These must be the very last members in the archive; it is an
+error if they are not.
 
 Because `.nar` files are identified by the hash of their contents, and there
 must be one `.nar` file per `.narinfo` file for sorting and streaming purposes,
