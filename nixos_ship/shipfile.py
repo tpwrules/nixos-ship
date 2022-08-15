@@ -32,13 +32,23 @@ class ShipfileWriter:
         self._writer = compressor.stream_writer(self._file)
         # 128K buf size picked because that's what the zstandard library
         # uses as its default buffer sizes
-        self.tar = tarfile.open(fileobj=self._writer, mode="w|",
+        self._tar = tarfile.open(fileobj=self._writer, mode="w|",
             format=tarfile.PAX_FORMAT, copybufsize=131072)
 
     def close(self):
-        self.tar.close()
+        self._tar.close()
         self._writer.close()
         self._file.close()
+
+    def _write_fp(self, path, size, fp):
+        info = tarfile.TarInfo(path)
+        info.type = tarfile.REGTYPE # regular file
+        info.size = size
+
+        self._tar.addfile(info, fp)
+
+    def _write_contents(self, path, contents):
+        self._write_fp(path, len(contents), io.BytesIO(contents))
 
     def write_version_info(self, mandatory_features=[], optional_features=[]):
         contents = dump_json({
@@ -47,30 +57,18 @@ class ShipfileWriter:
             "version": 1,
         })
 
-        info = tarfile.TarInfo("shipfile/metadata/version_info.json")
-        info.type = tarfile.REGTYPE # regular file
-        info.size = len(contents)
-
-        self.tar.addfile(info, io.BytesIO(contents))
+        self._write_contents("shipfile/metadata/version_info.json", contents)
 
     def write_config_info(self, config_paths):
         contents = dump_json(
             {str(k): {"path": str(v)} for k, v in config_paths.items()})
 
-        info = tarfile.TarInfo("shipfile/metadata/config_info.json")
-        info.type = tarfile.REGTYPE # regular file
-        info.size = len(contents)
-
-        self.tar.addfile(info, io.BytesIO(contents))
+        self._write_contents("shipfile/metadata/config_info.json", contents)
 
     def write_store_info(self):
         contents = b"StoreDir: /nix/store\n"
 
-        info = tarfile.TarInfo("shipfile/store/nix-cache-info")
-        info.type = tarfile.REGTYPE # regular file
-        info.size = len(contents)
-
-        self.tar.addfile(info, io.BytesIO(contents))
+        self._write_contents("shipfile/store/nix-cache-info", contents)
 
     def write_narinfo(self, path_info, in_file):
         url = ""
@@ -97,18 +95,13 @@ class ShipfileWriter:
         ).encode("ascii")
 
         p = path_info.path.replace("/nix/store/", "").split("-")[0]
-        info = tarfile.TarInfo(f"shipfile/store/{p}.narinfo")
-        info.type = tarfile.REGTYPE # regular file
-        info.size = len(contents)
+        self._write_contents(f"shipfile/store/{p}.narinfo", contents)
 
-        self.tar.addfile(info, io.BytesIO(contents))
+    def sink_nar_into(self, nar_hash, nar_size, fp):
+        # write a nar into the shipfile, taking an fp to get the nar data from
 
-    def write_nar(self, nar_hash, nar_size, fp):
-        info = tarfile.TarInfo(f"shipfile/store/nar/{nar_hash}.nar")
-        info.type = tarfile.REGTYPE # regular file
-        info.size = nar_size
-
-        self.tar.addfile(info, fp)
+        self._write_fp(f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar",
+            nar_size, fp)
 
 class ShipfileReader:
     def __init__(self, workdir, path):
