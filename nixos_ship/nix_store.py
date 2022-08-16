@@ -141,6 +141,15 @@ class StoreCommunicator:
         for string in strings:
             self._write_string(string)
 
+    def query_valid_paths(self, paths, lock=True, substitute=False):
+        self._write_num(ServeCommand.QUERY_VALID_PATHS)
+        self._write_num(int(bool(lock)))
+        self._write_num(int(bool(substitute)))
+        self._write_strings(paths)
+        self._fout.flush()
+
+        return self._read_strings()
+
     def query_closure(self, paths, include_outputs=False):
         self._write_num(ServeCommand.QUERY_CLOSURE)
         self._write_num(int(bool(include_outputs)))

@@ -38,7 +38,7 @@ def build_install_parser(subparsers):
     return install_parser
 
 def install_handler(args):
-    with Workdir() as workdir:
+    with Workdir() as workdir, nix_store.LocalStore(args.root) as store:
         sf = shipfile.ShipfileReader(workdir/"shipfile", args.src_file)
         sf.check_version_info()
 
@@ -49,11 +49,10 @@ def install_handler(args):
         path_list = set(sf.path_list)
 
         config_path = sf.config_info[args.name]
-        needed_paths = compute_needed_paths(
-            workdir, config_path, path_infos, args.root)
+        needed_paths = compute_needed_paths(config_path, path_infos, store)
 
         import_successful = import_needed_paths(
-            sf, path_list, path_infos, needed_paths, args.root)
+            sf, path_list, path_infos, needed_paths, store)
 
         if import_successful:
             nix_tools.set_profile_path(args.root+"/nix/var/nix/profiles/system",
