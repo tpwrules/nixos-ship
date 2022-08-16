@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="nixos-ship",
-    version="0.1.0",
+    version="0.2.1",
     license="MIT",
     packages=find_packages(),
     entry_points={
