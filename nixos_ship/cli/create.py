@@ -12,6 +12,25 @@ from .. import nix_store
 def build_create_parser(subparsers):
     import argparse
 
+    def parse_size(size):
+        size = size.strip()
+        if len(size) == 0:
+            raise ValueError("size must be specified")
+
+        if size[-1] in "KMGT":
+            # calculate multiplier by looking up string position
+            multiplier = 2**(10*(" KMGT".index(size[-1])))
+            size = size[:-1] # remove from number
+        else:
+            multiplier = 1
+
+        size = int(float(size)*multiplier)
+
+        if size <= 0:
+            raise ValueError("size must be positive")
+
+        return size
+
     create_parser = subparsers.add_parser(
         "create", help="create a shipfile")
 
@@ -37,6 +56,10 @@ def build_create_parser(subparsers):
 
     create_parser.add_argument("-n", "--name",
         type=str, help="regex matching configuration names to ship", default=""
+    )
+
+    create_parser.add_argument("--split", type=parse_size,
+        help="size of each shipfile part; supports KMGT as 2**10 suffixes",
     )
 
     create_parser.set_defaults(handler=create_handler)
@@ -90,7 +113,8 @@ def create_handler(args):
                 delta_flake_path, delta_config_names)
 
         sf = shipfile.ShipfileWriter(workdir/"shipfile", args.dest_file,
-            compression=args.level)
+            compression=args.level,
+            split_size=args.split)
         sf.write_version_info()
 
         with nix_store.LocalStore() as store:

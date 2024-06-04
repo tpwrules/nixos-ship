@@ -57,13 +57,50 @@ class ShipfileError(RuntimeError):
 # maximum expected size of anything which is not a .nar file
 MAX_METADATA_SIZE = 1048576
 
+class SplitWriter:
+    def __init__(self, path, split_size):
+        self._path = str(path)
+        self._split_size = split_size
+
+        # eagerly open file in case there's a problem
+        self._file = open(self._path, "wb")
+        self._file_number = 0
+        self._curr_size = 0
+
+    def write(self, data):
+        total_len = len(data)
+        while len(data) > 0:
+            data_len = len(data)
+            amount = min(data_len, self._split_size-self._curr_size)
+            if amount == data_len: # still enough space, just write it
+                self._file.write(data)
+                self._curr_size += data_len
+                return total_len
+            else: # write the part that fits
+                self._file.write(data[:amount])
+                data = data[amount:] # save the rest for next time
+                # move to next file
+                self._file.close()
+                self._file_number += 1
+                self._file = open(self._path+"."+str(self._file_number), "wb")
+                self._curr_size = 0
+
+        return total_len
+
+    def close(self):
+        return self._file.close()
+
 class ShipfileWriter:
-    def __init__(self, workdir, path, compression="normal"):
+    def __init__(self, workdir, path, compression="normal", split_size=None):
         self.workdir = workdir
         self.workdir.mkdir(parents=True)
 
         compressor = get_compressor(compression)
-        self._file = open(path, mode="wb")
+        self._is_split = split_size is not None
+        if self._is_split:
+            self._file = SplitWriter(path, split_size)
+        else:
+            self._file = open(path, "wb")
         self._writer = compressor.stream_writer(self._file)
         self._tar = tarfile.open(fileobj=self._writer, mode="w:",
             format=tarfile.PAX_FORMAT)
@@ -84,9 +121,12 @@ class ShipfileWriter:
         self._write_fp(path, len(contents), io.BytesIO(contents))
 
     def write_version_info(self, mandatory_features=[], optional_features=[]):
+        if self._is_split:
+            mandatory_features.append("simple_split")
+
         contents = dump_json({
-            "mandatory_features": mandatory_features,
-            "optional_features": optional_features,
+            "mandatory_features": sorted(mandatory_features),
+            "optional_features": sorted(optional_features),
             "version": 1,
         })
 
