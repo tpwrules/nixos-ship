@@ -1,5 +1,6 @@
 import json
 import itertools
+import re
 
 from ..workdir import Workdir
 
@@ -34,13 +35,19 @@ def build_create_parser(subparsers):
         help="tune compression level for your patience"
     )
 
+    create_parser.add_argument("-n", "--name",
+        type=str, help="regex matching configuration names to ship", default=""
+    )
+
     create_parser.set_defaults(handler=create_handler)
     return create_parser
 
-def get_config_names(flake_path):
-    return sorted(nix_tools.eval_flake(flake_path,
+def get_config_names(flake_path, name_regex):
+    names = nix_tools.eval_flake(flake_path,
         "nixosConfigurations",
-        "builtins.attrNames"))
+        "builtins.attrNames")
+
+    return sorted(n for n in names if name_regex.match(n) is not None)
 
 def build_flake_configs(flake_path, config_names):
     config_paths = {}
@@ -62,6 +69,7 @@ def build_flake_configs(flake_path, config_names):
     return config_paths
 
 def create_handler(args):
+    name_regex = re.compile(args.name)
     source_rev = git_tools.get_commit(args.rev)
 
     with Workdir(autoprune=True) as workdir:
@@ -73,11 +81,11 @@ def create_handler(args):
             git_tools.create_worktree(delta_flake_path,
                 git_tools.get_commit(args.delta))
 
-        config_names = get_config_names(flake_path)
+        config_names = get_config_names(flake_path, name_regex)
         config_paths = build_flake_configs(flake_path, config_names)
 
         if args.delta is not None:
-            delta_config_names = get_config_names(delta_flake_path)
+            delta_config_names = get_config_names(delta_flake_path, name_regex)
             delta_config_paths = build_flake_configs(
                 delta_flake_path, delta_config_names)
 
