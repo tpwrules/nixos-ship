@@ -176,22 +176,60 @@ class ShipfileWriter:
         self._write_fp(f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar",
             nar_size, fp)
 
+class SplitReader:
+    def __init__(self, path):
+        self._path = str(path)
+
+        # eagerly open file in case there's a problem
+        self._file = open(self._path, "rb")
+        self._file_number = 0
+
+    def read(self, length):
+        if self._file is None:
+            # open the next file now that data from it is needed
+            try:
+                self._file_number += 1
+                self._file = open(self._path+"."+str(self._file_number), "rb")
+            except FileNotFoundError as e:
+                raise ShipfileError("split shipfile incomplete") from e
+
+        data = self._file.read(length)
+        if len(data) < length: # didn't get enough, assume this file is over
+            self._file.close()
+            # don't open the next one yet because we might not need it
+            self._file = None
+
+        return data
+
+    def close(self):
+        if self._file is not None:
+            self._file.close()
+
 class ShipfileReader:
     def __init__(self, workdir, path):
         self.workdir = workdir
         self.workdir.mkdir(parents=True)
+        self._path = path
 
-        # set max window size to accommodate the large window modes from the
-        # shipfile sender
-        decompressor = zstandard.ZstdDecompressor(max_window_size=2**31)
-        self._file = open(path, mode="rb")
-        self._reader = decompressor.stream_reader(self._file)
-        self._tar = tarfile.open(fileobj=self._reader, mode="r:")
+        self._is_split = False # assume the file is not split
+        self._open() # open it that way
 
         self._state = "initial"
         self._ungot_entry = None
 
+    def _open(self):
+        # set max window size to accommodate the large window modes from the
+        # shipfile sender
+        decompressor = zstandard.ZstdDecompressor(max_window_size=2**31)
+        if self._is_split:
+            self._file = SplitReader(self._path)
+        else:
+            self._file = open(self._path, "rb")
+        self._reader = decompressor.stream_reader(self._file)
+        self._tar = tarfile.open(fileobj=self._reader, mode="r:")
+
     def close(self):
+        self._ungot_entry = None
         self._tar.close()
         self._reader.close()
         self._file.close()
@@ -250,6 +288,18 @@ class ShipfileReader:
             self._optional_features = set(version_info["optional_features"])
         except KeyError:
             raise ShipfileError("missing keys in version_info.json")
+
+        try:
+            self._mandatory_features.remove("simple_split")
+        except KeyError:
+            pass
+        else:
+            # it's split, so close the file and reopen it in split mode. the
+            # metadata handle function will safely ignore seeing the version
+            # info entry again.
+            self.close()
+            self._is_split = True
+            self._open()
 
         if len(self._mandatory_features) > 0:
             raise ShipfileError("unknown mandatory features "
