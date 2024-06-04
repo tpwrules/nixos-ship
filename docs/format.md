@@ -48,8 +48,7 @@ are found.
 3. `version`: Integer describing the overall version of the shipfile. If not
     known by the receiver, the shipfile is rejected.
 
-No features of either type are currently defined. The shipfile version is
-currently 1.
+No optional features are currently defined. The shipfile version is currently 1.
 
 Note that the JSON should be sorted lexicographically by keys and pretty-printed
 with 2 spaces of indentation for reproducibility.
@@ -90,6 +89,12 @@ An example config info file is presented below.
   }
 }
 ```
+
+#### Mandatory Features
+
+* `simple_split`
+    * The shipfile is split into multiple segments, named `<original>`,
+      `<original>.1`, `<original>.2`, etc. No additional metadata is present.
 
 ### Store Folder
 
