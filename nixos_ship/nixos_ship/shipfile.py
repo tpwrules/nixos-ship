@@ -54,9 +54,6 @@ def parse_nix_kv(contents):
 class ShipfileError(RuntimeError):
     pass
 
-# maximum expected size of anything which is not a .nar file
-MAX_METADATA_SIZE = 1048576
-
 class SplitWriter:
     def __init__(self, path, split_size):
         self._path = str(path)
