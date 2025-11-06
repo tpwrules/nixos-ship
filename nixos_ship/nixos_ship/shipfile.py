@@ -201,22 +201,12 @@ class ShipfileWriter:
         p = path_info.path.replace("/nix/store/", "").split("-")[0]
         self._write_contents(f"shipfile/store/{p}.narinfo", contents)
 
-    def sink_nar_fp(self, nar_hash, nar_size, fp):
-        # write a nar into the shipfile, taking an fp to get the nar data from
-
-        def doit(dst_fp):
-            size = nar_size
-
-            while size > 0:
-                data = fp.read(min(16384, size)) # same size as tarfile
-                if len(data) == 0:
-                    break
-
-                dst_fp.write(data)
-                size -= len(data)
+    def sink_nar_fn(self, nar_hash, nar_size, nar_source_fn):
+        # write a nar into the shipfile, taking a function which is called with
+        # the fp where data should be written
 
         self._write_fn(f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar",
-            nar_size, doit)
+            nar_size, nar_source_fn)
 
 class SplitReader:
     def __init__(self, path):
