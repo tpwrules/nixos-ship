@@ -327,13 +327,16 @@ class StoreCommunicator:
         self._write_string(path_info.ca_info)
 
         size = path_info.nar_size
+        read = fp.read # for some extra speed
+        write = self._fout.write
         while size > 0:
-            num_read = fp.readinto(self._buf[:min(size, len(self._buf))])
-            if num_read == 0:
-                break
+            data = read(min(size, 131072))
+            data_len = len(data)
+            if data_len == 0:
+                return False # no success
 
-            self._fout.write(self._buf[:num_read])
-            size -= num_read
+            write(data)
+            size -= data_len
 
         self._fout.flush()
 
