@@ -91,15 +91,12 @@ class SplitWriter:
         return self._file.close()
 
 class ShipfileWriter:
-    def __init__(self, workdir, path, compression="normal", split_size=None):
+    def __init__(self, path, compression="normal", split_size=None):
         if split_size is not None and split_size < 1048576:
             raise ValueError("split_size must be at least 1M")
             # if not then the marker to open in split mode might not be in the
             # first file and the reader would just see a truncated file. in
             # reality the actual minimum size is < 200 bytes but just in case...
-
-        self.workdir = workdir
-        self.workdir.mkdir(parents=True)
 
         compressor = get_compressor(compression)
         self._is_split = split_size is not None
@@ -238,9 +235,7 @@ class SplitReader:
             self._file.close()
 
 class ShipfileReader:
-    def __init__(self, workdir, path):
-        self.workdir = workdir
-        self.workdir.mkdir(parents=True)
+    def __init__(self, path):
         self._path = path
 
         self._is_split = False # assume the file is not split

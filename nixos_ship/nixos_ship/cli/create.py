@@ -112,7 +112,7 @@ def create_handler(args):
             delta_config_paths = build_flake_configs(
                 delta_flake_path, delta_config_names)
 
-        sf = shipfile.ShipfileWriter(workdir/"shipfile", args.dest_file,
+        sf = shipfile.ShipfileWriter(args.dest_file,
             compression=args.level,
             split_size=args.split)
         sf.write_version_info()

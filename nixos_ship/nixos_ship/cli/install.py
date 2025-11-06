@@ -3,8 +3,6 @@ import subprocess
 import os
 import sys
 
-from ..workdir import Workdir
-
 from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
@@ -39,10 +37,9 @@ def build_install_parser(subparsers):
     return install_parser
 
 def install_handler(args):
-    with Workdir() as workdir, nix_store.LocalStore(args.root) as store:
+    with nix_store.LocalStore(args.root) as store:
         # do the import so we have the path on disk to install
-        success, config_path = do_import(
-            workdir, store, args.src_file, args.name)
+        success, config_path = do_import(store, args.src_file, args.name)
 
         if not success:
             sys.exit(1)

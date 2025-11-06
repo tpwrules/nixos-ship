@@ -3,8 +3,6 @@ import subprocess
 import os
 import sys
 
-from ..workdir import Workdir
-
 from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
@@ -82,8 +80,8 @@ def import_needed_paths(sf, path_list, path_infos, needed_paths, store):
 
     return True
 
-def do_import(workdir, store, src_file, name):
-    sf = shipfile.ShipfileReader(workdir/"shipfile", src_file)
+def do_import(store, src_file, name):
+    sf = shipfile.ShipfileReader(src_file)
     sf.check_version_info()
 
     sf.read_metadata()
@@ -108,9 +106,8 @@ def do_import(workdir, store, src_file, name):
     return success, config_path
 
 def import_handler(args):
-    with Workdir() as workdir, nix_store.LocalStore(args.root) as store:
-        success, config_path = do_import(
-            workdir, store, args.src_file, args.name)
+    with nix_store.LocalStore(args.root) as store:
+        success, config_path = do_import(store, args.src_file, args.name)
 
         if not success:
             sys.exit(1)
