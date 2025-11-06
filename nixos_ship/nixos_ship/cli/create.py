@@ -147,7 +147,7 @@ def create_handler(args):
 
             sf.write_store_info()
             for p in path_infos:
-                sf.write_narinfo(p, in_file=p.path in paths)
+                sf.write_narinfo(p, in_shipfile=p.path in paths)
 
             print("Writing store paths...")
             for path_info in path_infos:

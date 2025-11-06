@@ -174,9 +174,9 @@ class ShipfileWriter:
 
         self._write_contents("shipfile/store/nix-cache-info", contents)
 
-    def write_narinfo(self, path_info, in_file):
+    def write_narinfo(self, path_info, in_shipfile):
         url = ""
-        if in_file:
+        if in_shipfile:
             url = f"nar/{path_info.nar_hash.split(':')[1]}.nar"
 
         refs = " ".join(r.replace("/nix/store/", "")
@@ -390,9 +390,9 @@ class ShipfileReader:
             if entry.name == "shipfile/store/nix-cache-info":
                 self.cache_info = self._read_cache_info(entry)
             elif entry.name.endswith(".narinfo"):
-                path_info, in_file = self._read_narinfo(entry)
+                path_info, in_shipfile = self._read_narinfo(entry)
                 self.path_infos.append(path_info)
-                if in_file:
+                if in_shipfile:
                     self.path_list.append(path_info.path)
 
         if self.cache_info is None:
@@ -426,7 +426,7 @@ class ShipfileReader:
                 narinfo["FileHash"] != narinfo["NarHash"]:
             raise ShipfileError("invalid compression situation")
 
-        in_file = narinfo["URL"] != ""
+        in_shipfile = narinfo["URL"] != ""
         refs = ["/nix/store/"+r.strip() for r in narinfo["References"].split()]
         deriver = narinfo.get("Deriver", "")
         if deriver != "":
@@ -445,7 +445,7 @@ class ShipfileReader:
             sigs=sigs
         )
 
-        return path_info, in_file
+        return path_info, in_shipfile
 
     def source_nar_fn(self, nar_hash, nar_sink_fn):
         # read a nar from the shipfile, taking a function which is provided the
