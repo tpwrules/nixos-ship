@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict
 import subprocess
 import os
 import select
+import hashlib
 
 SERVE_MAGIC_1 = 0x390c9deb
 SERVE_MAGIC_2 = 0x5452eecb
@@ -58,6 +59,18 @@ def sort_path_infos(path_infos):
         dfs(path_info_map[path])
 
     return sorted_path_infos
+
+def nix_base32(b):
+    ALPHABET = "0123456789abcdfghijklmnpqrsvwxyz"
+
+    syms = (len(b)*8+4)//5
+    bits = int.from_bytes(b, "little")
+    chars = []
+    for _ in range(syms):
+        chars.append(ALPHABET[bits & 0x1F])
+        bits >>= 5
+
+    return "".join(chars)[::-1]
 
 # something went wrong interacting with the store
 class StoreError(RuntimeError):
@@ -222,8 +235,16 @@ class StoreCommunicator:
 
         return path_infos
 
-    def source_nar_fp(self, path, size, fp):
+    def source_nar_fp(self, path, nar_hash, nar_size, fp):
         # read a nar from the store, taking an fp into which nar data is written
+
+        hash_type, hash_expected = nar_hash.split(":")
+        if hash_type == "sha256":
+            # a slight fib but if nix uses it we kinda have to
+            hasher = hashlib.sha256(usedforsecurity=False)
+        else:
+            raise ValueError(f"unknown hash type {hash_type}")
+
 
         self._write_num(ServeCommand.DUMP_STORE_PATH)
         self._write_string(path)
@@ -231,6 +252,13 @@ class StoreCommunicator:
 
         # though we expect a certain size, the nar is serialized as we read it
         # so if there corruption it may end up too small or too large.
+
+        # if the corrupt nar is the same size as the good nar, the hash check
+        # will fail. if it's larger, the hash check will also fail, as a length
+        # must have increased in the prefix we hash to make it bigger, causing
+        # the prefix to differ. in the larger case, we won't correctly
+        # calculate the current hash of the nar as we ignore the extra bytes,
+        # but this is not a big deal.
 
         # small is the hard case as we may wait for more nar forever. work
         # around this by closing the store process out pipe if there is a long
@@ -251,6 +279,7 @@ class StoreCommunicator:
 
             buf = self._buf
             buf_size = len(buf)
+            size = nar_size
             while size > 0:
                 num_read = fin.readinto(buf[:min(size, buf_size)])
                 if num_read is None: # no data?
@@ -265,7 +294,9 @@ class StoreCommunicator:
                     # end of file which we shouldn't see unless reading too much
                     raise StoreError("corrupt nar: unexpected end")
 
-                fp.write(buf[:num_read])
+                part = buf[:num_read]
+                hasher.update(part)
+                fp.write(part)
                 size -= num_read
         finally:
             if fout_closed:
@@ -274,6 +305,12 @@ class StoreCommunicator:
                 self._open_store() # reopen the store (with blocking read pipe)
             else:
                 os.set_blocking(fd, True) # make read pipe blocking again
+
+        hash_got = nix_base32(hasher.digest())
+        if hash_got != hash_expected:
+            # we don't know the actual hash since we may have truncated it, so
+            # don't bother say it
+            raise StoreError(f"corrupt nar: bad hash, expected {nar_hash}")
 
     def sink_nar_fp(self, path_info, fp):
         # write a nar into the store, taking an fp which the nar data is read

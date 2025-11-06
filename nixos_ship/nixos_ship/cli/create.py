@@ -154,6 +154,6 @@ def create_handler(args):
                 if path_info.path in paths:
                     sf.sink_nar_fn(path_info.nar_hash, path_info.nar_size,
                         lambda nar_fp: store.source_nar_fp(path_info.path,
-                            path_info.nar_size, nar_fp))
+                            path_info.nar_hash, path_info.nar_size, nar_fp))
 
         sf.close()
