@@ -78,6 +78,9 @@ def install_handler(args):
             config_path+"/bin/switch-to-configuration", args.switch
         ], check=True, env=env)
 
+        print("syncing disks (just in case)...")
+        os.sync() # in case of abusive embedded reboots
+
         if args.switch in {"boot", "test"}:
             print("install succeeded, please reboot")
         else:
