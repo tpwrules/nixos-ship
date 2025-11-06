@@ -78,4 +78,7 @@ def install_handler(args):
             config_path+"/bin/switch-to-configuration", args.switch
         ], check=True, env=env)
 
-        print("install succeeded, please reboot")
+        if args.switch in {"boot", "test"}:
+            print("install succeeded, please reboot")
+        else:
+            print("install succeeded")
