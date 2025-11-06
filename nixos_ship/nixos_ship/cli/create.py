@@ -1,4 +1,4 @@
-import json
+import sys
 import itertools
 import re
 
@@ -143,23 +143,32 @@ def create_handler(args):
 
                 paths = set(itertools.chain(*config_closures.values()))
 
+            print("Writing shipfile metadata...")
             sf.write_config_info(config_paths)
 
             sf.write_store_info()
             for p in path_infos:
                 sf.write_narinfo(p, in_shipfile=p.path in paths)
 
-            print("Writing store paths...")
+            print("Writing store paths", end="")
             for path_info in path_infos:
                 if path_info.path in paths:
+                    print(end=".")
+                    sys.stdout.flush()
+
                     try:
                         sf.sink_nar_fn(path_info.nar_hash, path_info.nar_size,
                             lambda nar_fp: store.source_nar_fp(path_info.path,
                                 path_info.nar_hash, path_info.nar_size, nar_fp))
                     except Exception as e:
+                        print()
                         msg = f"error writing {path_info.path}"
                         if isinstance(e, nix_store.StoreError):
                             msg += ", please check for store corruption!"
                         raise RuntimeError(msg) from e
 
-        sf.close()
+            print()
+            print("Closing shipfile...")
+            sf.close()
+
+            print("creation successful")
