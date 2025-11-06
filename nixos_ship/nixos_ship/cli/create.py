@@ -152,8 +152,14 @@ def create_handler(args):
             print("Writing store paths...")
             for path_info in path_infos:
                 if path_info.path in paths:
-                    sf.sink_nar_fn(path_info.nar_hash, path_info.nar_size,
-                        lambda nar_fp: store.source_nar_fp(path_info.path,
-                            path_info.nar_hash, path_info.nar_size, nar_fp))
+                    try:
+                        sf.sink_nar_fn(path_info.nar_hash, path_info.nar_size,
+                            lambda nar_fp: store.source_nar_fp(path_info.path,
+                                path_info.nar_hash, path_info.nar_size, nar_fp))
+                    except Exception as e:
+                        msg = f"error writing {path_info.path}"
+                        if isinstance(e, nix_store.StoreError):
+                            msg += ", please check for store corruption!"
+                        raise RuntimeError(msg) from e
 
         sf.close()
