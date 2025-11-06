@@ -4,7 +4,7 @@
 with pkgs;
 python3.pkgs.buildPythonApplication rec {
   pname = "nixos-ship";
-  version = "0.3.1";
+  version = "0.3.2";
 
   src = ./nixos_ship;
   buildInputs = [ makeWrapper ];
