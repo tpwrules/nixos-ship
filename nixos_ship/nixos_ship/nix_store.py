@@ -133,8 +133,6 @@ class StoreCommunicator:
     def __init__(self, proc):
         self._proc = proc
 
-        self._buf = memoryview(bytearray(CHUNKSIZE))
-
         self._open_store()
 
     def _open_store(self):
@@ -280,12 +278,10 @@ class StoreCommunicator:
         try:
             os.set_blocking(fd, False) # make fin pipe nonblocking
 
-            buf = self._buf
-            buf_size = len(buf)
             size = nar_size
             while size > 0:
-                num_read = fin.readinto(buf[:min(size, buf_size)])
-                if num_read is None: # no data?
+                data = fin.read(min(size, CHUNKSIZE))
+                if data is None: # no data?
                     events = poller.poll(1000) # wait for 1 second
                     if len(events) == 0 and not fout_closed: # still no data :(
                         # close fout to cause store to close its end of fin
@@ -293,14 +289,15 @@ class StoreCommunicator:
                         self._fout.close()
                         fout_closed = True
                     continue
-                elif num_read == 0:
+
+                data_len = len(data)
+                if data_len == 0:
                     # end of file which we shouldn't see unless reading too much
                     raise StoreError("corrupt nar: unexpected end")
 
-                part = buf[:num_read]
-                hasher.update(part)
-                fp.write(part)
-                size -= num_read
+                hasher.update(data)
+                fp.write(data)
+                size -= data_len
         finally:
             if fout_closed:
                 poller.unregister(fd) # don't leave soon-to-be-closed fd around
