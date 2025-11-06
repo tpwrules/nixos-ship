@@ -1,8 +1,6 @@
 from enum import IntEnum
 from dataclasses import dataclass, asdict
-from typing import Optional
 import subprocess
-import struct
 
 SERVE_MAGIC_1 = 0x390c9deb
 SERVE_MAGIC_2 = 0x5452eecb
@@ -137,10 +135,10 @@ class StoreCommunicator:
             raise ValueError(f"unsupported store major protocol version")
 
     def _read_num(self):
-        return struct.unpack("<Q", self._fin.read(8))[0]
+        return int.from_bytes(self._fin.read(8), "little")
 
     def _write_num(self, num):
-        self._fout.write(struct.pack("<Q", num))
+        self._fout.write(num.to_bytes(8, "little"))
 
     def _read_string(self):
         blob_len = self._read_num()
