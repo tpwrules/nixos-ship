@@ -1,6 +1,7 @@
 import json
 import subprocess
 import os
+import sys
 
 from ..workdir import Workdir
 
@@ -54,31 +55,35 @@ def install_handler(args):
         import_successful = import_needed_paths(
             sf, path_list, path_infos, needed_paths, store)
 
-        if import_successful:
-            nix_tools.set_profile_path(args.root+"/nix/var/nix/profiles/system",
-                config_path, args.root)
+        if not import_successful:
+            sys.exit(1)
 
-            enter_cmd = []
-            if args.root != "":
-                # convince nix tooling this is a nixos partition
-                try:
-                    os.mkdir(args.root+"/etc")
-                except FileExistsError:
-                    pass
-                open(args.root+"/etc/NIXOS", "w").close()
+        print("import succeeded, doing installation...")
 
-                subprocess.run([ # from nixos-install, for grub
-                    "ln", "-sfn", "/proc/mounts", args.root+"/etc/mtab"
-                ], check=True)
-                enter_cmd = ["nixos-enter", "--root", args.root, "--"]
+        nix_tools.set_profile_path(args.root+"/nix/var/nix/profiles/system",
+            config_path, args.root)
 
-            env = os.environ.copy()
-            if args.install_bootloader:
-                env["NIXOS_INSTALL_BOOTLOADER"] = "1"
+        enter_cmd = []
+        if args.root != "":
+            # convince nix tooling this is a nixos partition
+            try:
+                os.mkdir(args.root+"/etc")
+            except FileExistsError:
+                pass
+            open(args.root+"/etc/NIXOS", "w").close()
 
-            subprocess.run([
-                *enter_cmd,
-                config_path+"/bin/switch-to-configuration", "boot"
-            ], check=True, env=env)
+            subprocess.run([ # from nixos-install, for grub
+                "ln", "-sfn", "/proc/mounts", args.root+"/etc/mtab"
+            ], check=True)
+            enter_cmd = ["nixos-enter", "--root", args.root, "--"]
 
-            print("install succeeded, please reboot")
+        env = os.environ.copy()
+        if args.install_bootloader:
+            env["NIXOS_INSTALL_BOOTLOADER"] = "1"
+
+        subprocess.run([
+            *enter_cmd,
+            config_path+"/bin/switch-to-configuration", "boot"
+        ], check=True, env=env)
+
+        print("install succeeded, please reboot")
