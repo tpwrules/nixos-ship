@@ -75,8 +75,8 @@ def import_needed_paths(sf, path_list, path_infos, needed_paths, store):
             continue
         if path_info.path in needed_set:
             print("importing", path_info.path)
-            sf.source_nar_into(path_info.nar_hash,
-                lambda fp: store.sink_nar_from(path_info, fp))
+            sf.source_nar_fn(path_info.nar_hash,
+                lambda fp: store.sink_nar_fp(path_info, fp))
 
     return True
 

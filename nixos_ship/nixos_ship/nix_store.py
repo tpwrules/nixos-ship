@@ -191,7 +191,7 @@ class StoreCommunicator:
 
         return path_infos
 
-    def source_nar_into(self, path, size, nar_sink_fn):
+    def source_nar_fn(self, path, size, nar_sink_fn):
         # read a nar from the store and take a function which is provided the
         # fp and that reads the nar data out of it
 
@@ -201,7 +201,7 @@ class StoreCommunicator:
 
         nar_sink_fn(self._fin)
 
-    def sink_nar_from(self, path_info, fp):
+    def sink_nar_fp(self, path_info, fp):
         # write a nar into the store, taking an fp which the nar data is read
         # out of
         self._write_num(ServeCommand.ADD_TO_STORE_NAR)

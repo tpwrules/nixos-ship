@@ -152,8 +152,8 @@ def create_handler(args):
             print("Writing store paths...")
             for path_info in path_infos:
                 if path_info.path in paths:
-                    store.source_nar_into(path_info.path, path_info.nar_size,
-                        lambda nar_fp: sf.sink_nar_into(
+                    store.source_nar_fn(path_info.path, path_info.nar_size,
+                        lambda nar_fp: sf.sink_nar_fp(
                             path_info.nar_hash, path_info.nar_size, nar_fp))
 
         sf.close()
