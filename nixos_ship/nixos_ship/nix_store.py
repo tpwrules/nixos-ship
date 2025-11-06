@@ -4,6 +4,8 @@ import subprocess
 import os
 import select
 import hashlib
+import threading
+import queue
 
 # read/write size used communicating with store (not a part of the protocol)
 CHUNKSIZE = 131072
@@ -74,6 +76,42 @@ def nix_base32(b):
         bits >>= 5
 
     return "".join(chars)[::-1]
+
+class NarHasher:
+    def __init__(self, hash_type, nar_size):
+        if hash_type == "sha256":
+            # a slight fib but if nix uses it we kinda have to
+            self._hasher = hashlib.sha256(usedforsecurity=False)
+        else:
+            raise ValueError(f"unknown hash type {hash_type}")
+        
+        if nar_size <= CHUNKSIZE:
+            # too small to bother starting up a thread
+            self._thread = None
+        else:
+            self._hash_q = queue.Queue(maxsize=100)
+            self._thread = threading.Thread(target=self._thread_fn,
+                args=(self._hasher, self._hash_q), daemon=True)
+            self._thread.start()
+
+    def update(self, data):
+        if self._thread is None:
+            self._hasher.update(data)
+        else:
+            self._hash_q.put(data)
+
+    def digest(self):
+        if self._thread is not None:
+            self._hash_q.put(None)
+            self._thread.join()
+            self._thread = None
+
+        return self._hasher.digest()
+
+    @staticmethod
+    def _thread_fn(hasher, hash_q):
+        while (data := hash_q.get()) is not None:
+            hasher.update(data)
 
 # something went wrong interacting with the store
 class StoreError(RuntimeError):
@@ -240,12 +278,6 @@ class StoreCommunicator:
         # read a nar from the store, taking an fp into which nar data is written
 
         hash_type, hash_expected = nar_hash.split(":")
-        if hash_type == "sha256":
-            # a slight fib but if nix uses it we kinda have to
-            hasher = hashlib.sha256(usedforsecurity=False)
-        else:
-            raise ValueError(f"unknown hash type {hash_type}")
-
 
         self._write_num(ServeCommand.DUMP_STORE_PATH)
         self._write_string(path)
@@ -274,8 +306,12 @@ class StoreCommunicator:
         poller = select.poll()
         poller.register(fd, select.POLLIN)
 
+        hasher = None
+        hash_got = None
+
         fout_closed = False # did we close the fout pipe?
         try:
+            hasher = NarHasher(hash_type, nar_size) # start hasher
             os.set_blocking(fd, False) # make fin pipe nonblocking
 
             size = nar_size
@@ -295,21 +331,24 @@ class StoreCommunicator:
                     # end of file which we shouldn't see unless reading too much
                     raise StoreError("corrupt nar: unexpected end")
 
-                hasher.update(data)
+                hasher.update(data) # this may keep data past its return!!
                 fp.write(data)
                 size -= data_len
         finally:
+            # get hash now so the hasher is guaranteed to shut down
+            if hasher is not None:
+                hash_got = nix_base32(hasher.digest())
+
             if fout_closed:
                 poller.unregister(fd) # don't leave soon-to-be-closed fd around
                 self._proc.close() # close store fully
                 self._open_store() # reopen the store (with blocking read pipe)
             else:
                 os.set_blocking(fd, True) # make read pipe blocking again
-
-        hash_got = nix_base32(hasher.digest())
+        
         if hash_got != hash_expected:
             # we don't know the actual hash since we may have truncated it, so
-            # don't bother say it
+            # don't bother to say it
             raise StoreError(f"corrupt nar: bad hash, expected {nar_hash}")
 
     def sink_nar_fp(self, path_info, fp):
