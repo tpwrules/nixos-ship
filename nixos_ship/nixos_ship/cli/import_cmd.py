@@ -92,6 +92,13 @@ def do_import(workdir, store, src_file, name):
     path_infos = nix_store.sort_path_infos(sf.path_infos)
     path_list = set(sf.path_list)
 
+    if name not in sf.config_info:
+        print(f"sorry, the configuration named {name} isn't in this file")
+        opts = ", ".join(sorted(sf.config_info.keys()))
+        print(f"configurations: {opts}")
+
+        return False, None
+
     config_path = sf.config_info[name]
     needed_paths = compute_needed_paths(config_path, path_infos, store)
 
