@@ -3,6 +3,7 @@ import argparse
 from .create import build_create_parser
 from .import_cmd import build_import_parser
 from .install import build_install_parser
+from .show import build_show_parser
 
 def parse_args(program, args):
     main_parser = argparse.ArgumentParser(prog=program)
@@ -16,6 +17,7 @@ def parse_args(program, args):
         build_create_parser(subparsers),
         build_import_parser(subparsers),
         build_install_parser(subparsers),
+        build_show_parser(subparsers),
     ]
 
     return main_parser.parse_args(args)
