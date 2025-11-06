@@ -5,6 +5,9 @@ import os
 import select
 import hashlib
 
+# read/write size used communicating with store (not a part of the protocol)
+CHUNKSIZE = 131072
+
 SERVE_MAGIC_1 = 0x390c9deb
 SERVE_MAGIC_2 = 0x5452eecb
 
@@ -130,7 +133,7 @@ class StoreCommunicator:
     def __init__(self, proc):
         self._proc = proc
 
-        self._buf = memoryview(bytearray(131072))
+        self._buf = memoryview(bytearray(CHUNKSIZE))
 
         self._open_store()
 
@@ -330,7 +333,7 @@ class StoreCommunicator:
         read = fp.read # for some extra speed
         write = self._fout.write
         while size > 0:
-            data = read(min(size, 131072))
+            data = read(min(size, CHUNKSIZE))
             data_len = len(data)
             if data_len == 0:
                 return False # no success
