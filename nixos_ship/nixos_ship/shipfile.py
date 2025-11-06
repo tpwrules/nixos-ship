@@ -447,6 +447,32 @@ class ShipfileReader:
 
         return path_info, in_shipfile
 
+    def seek_nar(self, store_path, nar_hash):
+        # seek to a nar, printing progress as necessary (if progress is not
+        # desired, this function doesn't need to be called)
+
+        path = f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar"
+
+        printed = False
+        while True:
+            entry = self._next_entry()
+            if entry is None:
+                raise ShipfileError(f"could not find nar {path}")
+            if entry.name == path:
+                break
+
+            # only print something if the entry we need is not the next
+            if not printed:
+                printed = True
+                print(f"searching for {store_path} ", end="")
+            print(end=".")
+            sys.stdout.flush()
+
+        self._unget_entry(entry) # stash entry for the actual sourcing
+
+        if printed:
+            print() # do a newline
+
     def source_nar_fn(self, nar_hash, nar_sink_fn):
         # read a nar from the shipfile, taking a function which is provided the
         # fp and that reads the nar data out of it

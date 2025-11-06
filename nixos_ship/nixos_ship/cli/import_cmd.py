@@ -74,6 +74,7 @@ def import_needed_paths(sf, path_list, path_infos, needed_paths, store):
         if path_info.path not in path_list:
             continue
         if path_info.path in needed_set:
+            sf.seek_nar(path_info.path, path_info.nar_hash) # for progress
             print("importing", path_info.path)
             sf.source_nar_fn(path_info.nar_hash,
                 lambda fp: store.sink_nar_fp(path_info, fp))
