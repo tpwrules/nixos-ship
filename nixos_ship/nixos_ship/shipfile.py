@@ -123,6 +123,31 @@ class ShipfileWriter:
 
         self._tar.addfile(info, fp)
 
+    def _write_fn(self, path, size, fp_fn):
+        # not allowed to write the header without having tarfile handle the
+        # copying which we would rather not do. so we do what addfile does.
+
+        info = tarfile.TarInfo(path)
+        info.type = tarfile.REGTYPE # regular file
+        info.size = size
+
+        # write header
+        tar = self._tar
+        buf = info.tobuf(tar.format, tar.encoding, tar.errors)
+        tar.fileobj.write(buf)
+        tar.offset += len(buf)
+        tar.members.append(info)
+
+        # write file data (must be exactly size)
+        fp_fn(tar.fileobj)
+        tar.offset += size
+
+        # write padding
+        if size % tarfile.BLOCKSIZE:
+            padding = b"\x00" * (tarfile.BLOCKSIZE - (size % tarfile.BLOCKSIZE))
+            tar.fileobj.write(padding)
+            tar.offset += len(padding)
+
     def _write_contents(self, path, contents):
         self._write_fp(path, len(contents), io.BytesIO(contents))
 
@@ -179,8 +204,19 @@ class ShipfileWriter:
     def sink_nar_fp(self, nar_hash, nar_size, fp):
         # write a nar into the shipfile, taking an fp to get the nar data from
 
-        self._write_fp(f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar",
-            nar_size, fp)
+        def doit(dst_fp):
+            size = nar_size
+
+            while size > 0:
+                data = fp.read(min(16384, size)) # same size as tarfile
+                if len(data) == 0:
+                    break
+
+                dst_fp.write(data)
+                size -= len(data)
+
+        self._write_fn(f"shipfile/store/nar/{nar_hash.split(':')[1]}.nar",
+            nar_size, doit)
 
 class SplitReader:
     def __init__(self, path):
