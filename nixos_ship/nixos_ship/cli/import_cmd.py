@@ -1,6 +1,7 @@
 import json
 import subprocess
 import os
+import sys
 
 from ..workdir import Workdir
 
@@ -103,3 +104,8 @@ def import_handler(args):
     with Workdir() as workdir, nix_store.LocalStore(args.root) as store:
         success, config_path = do_import(
             workdir, store, args.src_file, args.name)
+
+        if not success:
+            sys.exit(1)
+
+        print("import succeeded")
