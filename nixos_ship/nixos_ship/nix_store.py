@@ -59,39 +59,66 @@ def sort_path_infos(path_infos):
 
     return sorted_path_infos
 
-class LocalStore:
-    def __init__(self, store_root=""):
-        self._proc = None
+# can be opened and closed multiple times
+class StoreProcess:
+    def __init__(self, store_root):
         self._store_root = store_root
 
-    def __enter__(self):
-        self._proc = subprocess.Popen([
+        self._subp = None
+
+    def open(self):
+        # open and return (fin, fout)
+
+        if self._subp is not None:
+            raise RuntimeError("already open")
+
+        self._subp = subprocess.Popen([
             "nix-store", "--serve", "--write",
             "--store", self._store_root,
         ], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        
+
+        return self._subp.stdout, self._subp.stdin
+
+    def close(self):
+        if self._subp is None:
+            return
+
+        self._subp.stdin.close()
+        self._subp.stdout.close()
+        self._subp.wait()
+
+        self._subp = None
+
+class LocalStore:
+    def __init__(self, store_root=""):
+        self._proc = StoreProcess(store_root)
+        self._store_root = store_root
+
+    def __enter__(self):
         c = None
         try:
-            c = StoreCommunicator(self._proc.stdout, self._proc.stdin)
+            c = StoreCommunicator(self._proc)
         finally:
+            # context exit is not called if enter throws, so ensure store is
+            # closed if the communicator fails to start.
             if c is None:
-                self._close()
+                self._proc.close()
 
         return c
 
-    def _close(self):
-        self._proc.stdin.close()
-        self._proc.stdout.close()
-        self._proc.wait()
-
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._close()
+        self._proc.close()
 
 class StoreCommunicator:
-    def __init__(self, fin, fout):
-        self._fin = fin
-        self._fout = fout
+    def __init__(self, proc):
+        self._proc = proc
+
         self._buf = memoryview(bytearray(131072))
+
+        self._open_store()
+
+    def _open_store(self):
+        self._fin, self._fout = self._proc.open()
 
         # send hellos
         self._write_num(SERVE_MAGIC_1)
