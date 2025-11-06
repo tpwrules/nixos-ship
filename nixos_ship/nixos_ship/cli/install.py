@@ -33,6 +33,11 @@ def build_install_parser(subparsers):
     install_parser.add_argument("--install-bootloader",
         action="store_true", help="force install system bootloader")
 
+    install_parser.add_argument("--switch", nargs="?",
+        default="boot", const="switch", # no-arg-added default
+        help="switch-to-configuration action (default boot, or switch if only "
+        "flag specified)")
+
     install_parser.set_defaults(handler=install_handler)
     return install_parser
 
@@ -67,9 +72,10 @@ def install_handler(args):
         if args.install_bootloader:
             env["NIXOS_INSTALL_BOOTLOADER"] = "1"
 
+        print(f"running switch-to-configuration {args.switch}...")
         subprocess.run([
             *enter_cmd,
-            config_path+"/bin/switch-to-configuration", "boot"
+            config_path+"/bin/switch-to-configuration", args.switch
         ], check=True, env=env)
 
         print("install succeeded, please reboot")
