@@ -1,6 +1,8 @@
 from enum import IntEnum
 from dataclasses import dataclass, asdict
 import subprocess
+import os
+import select
 
 SERVE_MAGIC_1 = 0x390c9deb
 SERVE_MAGIC_2 = 0x5452eecb
@@ -56,6 +58,10 @@ def sort_path_infos(path_infos):
         dfs(path_info_map[path])
 
     return sorted_path_infos
+
+# something went wrong interacting with the store
+class StoreError(RuntimeError):
+    pass
 
 # can be opened and closed multiple times
 class StoreProcess:
@@ -223,16 +229,51 @@ class StoreCommunicator:
         self._write_string(path)
         self._fout.flush()
 
-        fin = self._fin
-        buf = self._buf
-        buf_size = len(buf)
-        while size > 0:
-            num_read = fin.readinto(buf[:min(size, buf_size)])
-            if num_read == 0:
-                break
+        # though we expect a certain size, the nar is serialized as we read it
+        # so if there corruption it may end up too small or too large.
 
-            fp.write(buf[:num_read])
-            size -= num_read
+        # small is the hard case as we may wait for more nar forever. work
+        # around this by closing the store process out pipe if there is a long
+        # read delay, causing it to close the in pipe after it finishes the nar
+        # and stop our reads if we are expecting more than it will provide. if
+        # it was just busy and gives us enough, we restart it and carry on.
+
+        fin = self._fin
+        fd = fin.fileno()
+
+        # set up poll object to do the timeout
+        poller = select.poll()
+        poller.register(fd, select.POLLIN)
+
+        fout_closed = False # did we close the fout pipe?
+        try:
+            os.set_blocking(fd, False) # make fin pipe nonblocking
+
+            buf = self._buf
+            buf_size = len(buf)
+            while size > 0:
+                num_read = fin.readinto(buf[:min(size, buf_size)])
+                if num_read is None: # no data?
+                    events = poller.poll(1000) # wait for 1 second
+                    if len(events) == 0 and not fout_closed: # still no data :(
+                        # close fout to cause store to close its end of fin
+                        # after it's done sending so we die reading too much.
+                        self._fout.close()
+                        fout_closed = True
+                    continue
+                elif num_read == 0:
+                    # end of file which we shouldn't see unless reading too much
+                    raise StoreError("corrupt nar: unexpected end")
+
+                fp.write(buf[:num_read])
+                size -= num_read
+        finally:
+            if fout_closed:
+                poller.unregister(fd) # don't leave soon-to-be-closed fd around
+                self._proc.close() # close store fully
+                self._open_store() # reopen the store (with blocking read pipe)
+            else:
+                os.set_blocking(fd, True) # make read pipe blocking again
 
     def sink_nar_fp(self, path_info, fp):
         # write a nar into the store, taking an fp which the nar data is read
