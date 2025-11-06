@@ -9,7 +9,7 @@ from .. import nix_tools
 from .. import shipfile
 from .. import nix_store
 
-from .import_cmd import compute_needed_paths, import_needed_paths
+from .import_cmd import do_import
 
 def build_install_parser(subparsers):
     import argparse
@@ -40,22 +40,11 @@ def build_install_parser(subparsers):
 
 def install_handler(args):
     with Workdir() as workdir, nix_store.LocalStore(args.root) as store:
-        sf = shipfile.ShipfileReader(workdir/"shipfile", args.src_file)
-        sf.check_version_info()
+        # do the import so we have the path on disk to install
+        success, config_path = do_import(
+            workdir, store, args.src_file, args.name)
 
-        sf.read_metadata()
-        sf.read_store_metadata()
-
-        path_infos = nix_store.sort_path_infos(sf.path_infos)
-        path_list = set(sf.path_list)
-
-        config_path = sf.config_info[args.name]
-        needed_paths = compute_needed_paths(config_path, path_infos, store)
-
-        import_successful = import_needed_paths(
-            sf, path_list, path_infos, needed_paths, store)
-
-        if not import_successful:
+        if not success:
             sys.exit(1)
 
         print("import succeeded, doing installation...")
