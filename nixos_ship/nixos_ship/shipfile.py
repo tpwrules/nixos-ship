@@ -459,4 +459,8 @@ class ShipfileReader:
             if entry.name == path:
                 break
 
-        nar_sink_fn(self._tar.extractfile(entry))
+        fp = self._tar.extractfile(entry)
+        try:
+            nar_sink_fn(fp)
+        finally:
+            fp.close()
